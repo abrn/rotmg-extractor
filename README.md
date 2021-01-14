@@ -1,0 +1,1 @@
+# RotMG Resource Extractor
