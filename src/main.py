@@ -14,6 +14,10 @@ from datetime import datetime
 ###################
 
 
+def relative_dir(path):
+    return Path(__file__).parent / path
+
+
 def create_dir(path):
     Path(path).mkdir(parents=True, exist_ok=True)
 
@@ -45,12 +49,14 @@ def get_build_hash():
     return build_hash
 
 
-def download_asset(build_url, path, file_name):
-    url = build_url + path + file_name + ".gz"
+def download_asset(build_url, url_path, file_name):
+
+    url = build_url + url_path + file_name + ".gz"
+    temp_dir = relative_dir("temp")
+    output_file = temp_dir / file_name
 
     # Create directory if not exist
-    create_dir("./temp")
-    output_file = f"./temp/{file_name}"
+    create_dir(temp_dir)
 
     # Download file
     logging.info(f"Downloading {url}")
@@ -74,8 +80,10 @@ def download_asset(build_url, path, file_name):
 ################
 
 
-def extract_resources(build_hash, resource_file, obj_type, data_name, ext):
-    output_dir = f"./output/current/{ext}"
+def extract_resources(resource_file, obj_type, data_name, ext):
+
+    output_dir = relative_dir(f"output/current/{ext}")
+
     logging.debug(f"Extracting {data_name} ({obj_type}) from {resource_file}")
     am = AssetsManager(f"./temp/{resource_file}")
     for asset in am.assets.values():
@@ -90,20 +98,23 @@ def extract_resources(build_hash, resource_file, obj_type, data_name, ext):
 
 
 def save_resource(dir_path, file_name, ext, obj_type, data):
-    # Create dir if not exist
-    create_dir(dir_path)
-    output_file = f"{dir_path}/{file_name}.{ext}"
+    rel_path = relative_dir(dir_path)
+    create_dir(rel_path)
+    output_file = rel_path / f"{file_name}.{ext}"
 
     if obj_type == "TextAsset":
         text = data.text.replace("\n", "")
-        write_file(dir_path, f"{file_name}.{ext}", text)
+        write_file(rel_path, f"{file_name}.{ext}", text)
     elif obj_type == "Sprite":
         data.save(output_file)
 
 
 def main():
-    create_dir("./temp/")
-    logging.basicConfig(filename="./temp/log.txt",
+    temp_dir = relative_dir("temp")
+    output_dir = relative_dir("output")
+
+    create_dir(temp_dir)
+    logging.basicConfig(filename=temp_dir / "log.txt",
                         format="%(asctime)s %(message)s",
                         datefmt="%m/%d/%Y %I:%M:%S %p",
                         level="INFO")
@@ -112,9 +123,9 @@ def main():
     build_url = f"https://rotmg-build.decagames.com/build-release/{build_hash}/rotmg-exalt-win-64"
 
     timestamp = str(math.floor(datetime.now().timestamp()))
-    write_file("./output", "last_updated.txt", timestamp)
+    write_file(output_dir, "last_updated.txt", timestamp)
 
-    current_build_hash = "./output/current/build_hash.txt"
+    current_build_hash = output_dir / "current" / "build_hash.txt"
     if os.path.isfile(current_build_hash):
         current_build_hash = read_file(current_build_hash)
 
@@ -122,15 +133,15 @@ def main():
             logging.info("Build Hash is equal, aborting.")
             return
 
-    write_file("./output/current", "build_hash.txt", build_hash)
+    write_file(output_dir / "current", "build_hash.txt", build_hash)
 
     download_asset(build_url, "/RotMG%20Exalt_Data/", "resources.assets")
     # download_asset(build_url, "/RotMG%20Exalt_Data/", "resources.assets.resS")
     # download_asset(build_url, "/RotMG%20Exalt_Data/", "resources.resource")
     # download_asset(build_url, "/RotMG%20Exalt_Data/il2cpp_data/Metadata/", "global-metadata.dat")
 
-    extract_resources(build_hash, "resources.assets", "TextAsset", "objects", "xml")
-    extract_resources(build_hash, "resources.assets", "TextAsset", "ground", "xml")
+    extract_resources("resources.assets", "TextAsset", "objects", "xml")
+    extract_resources("resources.assets", "TextAsset", "ground", "xml")
 
     shutil.copyfile("./temp/log.txt", "./output/current/log.txt")
     shutil.copytree("./output/current", f"./output/{build_hash}")
