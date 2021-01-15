@@ -45,7 +45,7 @@ def get_build_hash():
     return build_hash
 
 
-def download_build_asset(build_url, path, file_name):
+def download_asset(build_url, path, file_name):
     url = build_url + path + file_name + ".gz"
 
     # Create directory if not exist
@@ -75,7 +75,7 @@ def download_build_asset(build_url, path, file_name):
 
 
 def extract_resources(build_hash, resource_file, obj_type, data_name, ext):
-    output_dir = f"./output/{build_hash}/"
+    output_dir = f"./output/current/{ext}"
     logging.debug(f"Extracting {data_name} ({obj_type}) from {resource_file}")
     am = AssetsManager(f"./temp/{resource_file}")
     for asset in am.assets.values():
@@ -83,11 +83,8 @@ def extract_resources(build_hash, resource_file, obj_type, data_name, ext):
             if obj.type == obj_type:
                 data = obj.read()
                 if data.name == data_name:
-                    # Create directory if not exist
                     Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-                    save_resource(f"./output/{build_hash}", data.name, ext, obj.type, data)
-                    save_resource(f"./output/current", data.name, ext, obj.type, data)
+                    save_resource(output_dir, data.name, ext, obj.type, data)
                     logging.info(f"Successfully exported {data_name}.{ext}")
                     return
 
@@ -127,16 +124,16 @@ def main():
 
     write_file("./output/current", "build_hash.txt", build_hash)
 
-    download_build_asset(build_url, "/RotMG%20Exalt_Data/", "resources.assets")
-    # download_build_asset(build_url, "/RotMG%20Exalt_Data/", "resources.assets.resS")
-    # download_build_asset(build_url, "/RotMG%20Exalt_Data/", "resources.resource")
+    download_asset(build_url, "/RotMG%20Exalt_Data/", "resources.assets")
+    # download_asset(build_url, "/RotMG%20Exalt_Data/", "resources.assets.resS")
+    # download_asset(build_url, "/RotMG%20Exalt_Data/", "resources.resource")
+    # download_asset(build_url, "/RotMG%20Exalt_Data/il2cpp_data/Metadata/", "global-metadata.dat")
 
     extract_resources(build_hash, "resources.assets", "TextAsset", "objects", "xml")
     extract_resources(build_hash, "resources.assets", "TextAsset", "ground", "xml")
 
-    # Copy log.txt once finished
     shutil.copyfile("./temp/log.txt", "./output/current/log.txt")
-    shutil.copyfile("./temp/log.txt", f"./output/{build_hash}/log.txt")
+    shutil.copytree("./output/current", f"./output/{build_hash}")
 
 
 if __name__ == "__main__":
