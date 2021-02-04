@@ -19,7 +19,7 @@ from datetime import datetime
 
 
 def relative_dir(path):
-    return Path(__file__).parent / path
+    return Path(__file__).parent.resolve() / path
 
 
 def create_dir(path):
@@ -28,8 +28,8 @@ def create_dir(path):
 
 def save_text(dir_path, file_name, text):
     rel_path = relative_dir(dir_path)
-    create_dir(dir_path)
-    output_file = f"{dir_path}/{file_name}"
+    create_dir(rel_path)
+    output_file = f"{rel_path}/{file_name}"
     with open(output_file, "w") as file:
         # strip non-ascii characters
         text = text.encode("ascii", errors="ignore").decode()
@@ -145,7 +145,7 @@ def save_resource(file_name, obj_type, data, ext):
             else:
                 ext = "txt"
 
-    rel_path = relative_dir(f"./output/current/{ext}")
+    rel_path = relative_dir(f"output/current/{ext}")
     create_dir(rel_path)
     output_file = rel_path / f"{file_name}.{ext}"
 
@@ -192,7 +192,7 @@ def do_manifest_stuff():
         logging.debug(f"Merging {file_names}")
         merged = merge_xml(xml_files)
 
-        save_text(f"./output/current/merged", f"{merge_file}.xml", merged)
+        save_text(f"output/current/merged", f"{merge_file}.xml", merged)
         logging.info(f"Successfully merged {len(file_names)} xml files into {merge_file}.xml")
 
 
