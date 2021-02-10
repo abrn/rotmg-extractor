@@ -3,3 +3,4 @@ src/output/*
 src/temp
 venv
 .idea
+__pycache__/
