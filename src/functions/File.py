@@ -36,17 +36,36 @@ def read_file(file_path):
         return file.read()
 
 
-def write_file(file_path: Path, data, mode="w", overwrite=False):
+def rename_duplicate_file(file_path, sep="-"):
+    """ Rename a file path if there is a duplicate file. E.g. Untitled-1 or Untitled-2 """
+    
+    uniq = 1
+    while os.path.isfile(file_path):
+        file_name = file_path.stem
+
+        # instead of name-1-2-3 do name-3
+        if file_name.endswith(f"{sep}{uniq-1}"):
+            file_name = file_name.replace(f"{sep}{uniq-1}", "")
+
+        file_ext = file_path.suffix
+        file_path = file_path.parent / f"{file_name}{sep}{uniq}{file_ext}"
+        uniq += 1
+
+    return file_path
+
+
+def write_file(file_path: Path, data, mode="w", overwrite=False, rename_duplicate=True):
+
     Path(file_path).parent.mkdir(parents=True, exist_ok=True)
 
     # Save the file as Filename-1.txt if there is a duplicate
     if not overwrite:
-        uniq = 1
-        while os.path.isfile(file_path):
-            file_name = file_path.stem
-            file_ext = file_path.suffix
-            file_path = file_path.parent / f"{file_name}-{uniq}{file_ext}"
-            uniq += 1
+        if os.path.isfile(file_path):
+            if rename_duplicate:
+                file_path = rename_duplicate_file(file_path)
+            else:
+                logger.log(logging.ERROR, f"Error saving {file_path} ! (overwrite={overwrite}, rename_duplicate={rename_duplicate})")
+                return
 
     with open(file_path, mode) as file:
         file.write(data)
@@ -64,19 +83,17 @@ def merge_xml(files):
     return ElementTree.tostring(xml_data).decode("utf-8")
 
 
-def archive_build_assets():
+def archive_build_assets(input_path: Path, output_path: Path, file_name="build", format="zip"):
     logger.log(logging.INFO, "Archiving build assets...")
-
-    # # Get FILES_DIR relative to TEMP_DIR
-    # rel_files_dir = Constants.FILES_DIR.relative_to(Constants.TEMP_DIR)
 
     # gztar includes the entire directory structure (C:\Users\...)
     # tar includes "." and @PaxHeaders
     # zip is the only one that actually works
     shutil.make_archive(
-        base_name=Constants.WORK_DIR / "build",
+        base_name=output_path / file_name,
         format="zip",
-        root_dir=Constants.FILES_DIR
+        root_dir=input_path
     )
 
-    logger.log(logging.INFO, "Build files archived.")
+    # rel_output_path = input_path.relative_to(Constants.SRC_DIR)
+    logger.log(logging.INFO, f"Build files archived ({output_path / file_name}.{format})")

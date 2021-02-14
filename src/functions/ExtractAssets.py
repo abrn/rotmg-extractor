@@ -1,6 +1,7 @@
 import logging
 import os
 import re as regex
+import ntpath
 import UnityPy
 # from xml.etree import ElementTree
 
@@ -8,17 +9,29 @@ from classes import Constants
 from classes import logger, IndentFilter
 from pathlib import Path
 
-from functions.File import write_file
+from functions.File import *
 
 
-def extract_all_assets(file_patterns, ignored_exts=[], dir=Constants.FILES_DIR):
+def extract_all_assets(input_dir, output_path):
+
+    file_patterns = [
+        "^globalgamemanagers",
+        "^level[0-9]",
+        "^resources",
+        "^sharedassets[0-9]"
+    ]
+
+    ignored_exts = [
+        ".resS",
+        ".resource"
+    ]
 
     logger.log(logging.INFO, "Extracting build assets...")
     IndentFilter.level += 1
 
     # Iterate files
-    for file_name in os.listdir(dir):
-        file_path = os.path.join(dir, file_name)
+    for file_name in os.listdir(input_dir):
+        file_path = os.path.join(input_dir, file_name)
 
         if not os.path.isfile(file_path):
             continue
@@ -39,13 +52,13 @@ def extract_all_assets(file_patterns, ignored_exts=[], dir=Constants.FILES_DIR):
         if not continue_loop:
             continue
 
-        extract_assets(file_path)
+        extract_assets(file_path, output_path)
 
     IndentFilter.level -= 1
     logger.log(logging.INFO, "Build assets extracted!")
 
 
-def extract_assets(file_path):
+def extract_assets(file_path, output_path):
 
     file_name = Path(file_path).name
     logger.log(logging.INFO, f"Extracting assets from \"{file_name}\"")
@@ -79,12 +92,12 @@ def extract_assets(file_path):
             elif first_line.startswith("{") or first_line.startswith("["):
                 ext = "json"
             
-            output_file = Constants.WORK_DIR / str(obj.type) / f"{obj_name}.{ext}"
+            output_file = output_path / str(obj.type) / f"{obj_name}.{ext}"
             write_file(output_file, data.script, "wb")
 
         elif obj.type == "Sprite" or obj.type == "Texture2D":
             # print pathid or something like that here
-            output_file = Constants.WORK_DIR / str(obj.type) / f"{obj_name}.png"
+            output_file = output_path / str(obj.type) / f"{obj_name}.png"
             Path(output_file).parent.mkdir(parents=True, exist_ok=True)
 
             try:
@@ -94,7 +107,7 @@ def extract_assets(file_path):
 
         elif obj.type == "AudioClip":
             for name, data in data.samples.items():
-                output_file = Constants.WORK_DIR / str(obj.type) / name
+                output_file = output_path / str(obj.type) / name
                 write_file(output_file, data, "wb")
 
         if output_file != "":
@@ -148,40 +161,42 @@ def get_version_string(metadata_file):
     return None
 
 
-# def do_manifest_stuff():
-#     logger.log(logging.INFO, f"Merging xml files...")
-#     rel_dir = relative_dir("./output/current/json/manifest.json")
-#     manifest = read_json(rel_dir)
+def merge_xml_files(manifest_file, input_dir: Path, output_dir: Path):
+    logger.log(logging.INFO, f"Merging xml files...")
+    IndentFilter.level += 1
 
-#     # ignore this key as it has no paths
-#     del manifest["settings"]
+    manifest = read_json(manifest_file)
+    for output_file_name in manifest:
+        xml_files = []
+        file_names = []
+        for merge_file in manifest[output_file_name]:
+            if not isinstance(merge_file, dict):
+                continue
 
-#     for merge_file in manifest:
-#         xml_files = []
-#         file_names = []
-#         for file in manifest[merge_file]:
-#             path = file["path"]
-#             if not path.endswith("xml"):
-#                 continue
+            merge_file_path = merge_file.get("path")
+            if not merge_file_path:
+                continue
 
-#             file_name = ntpath.basename(path)
-#             rel_file = relative_dir(f"./output/current/xml/{file_name}")
+            file_name = ntpath.basename(merge_file_path)
+            if not file_name.endswith("xml"):
+                continue
 
-#             xml_files.append(rel_file)
-#             file_names.append(file_name)
-#             # data = read_file(rel_file)
-#             # xml = xmltodict.parse(data)
+            file_path = input_dir / "TextAsset" / file_name
+            if not os.path.isfile(file_path):
+                logger.log(logging.ERROR, f"Could not find {file_path} !")
+                continue
 
-#             # Get the first xml key
-#             # e.g. GroundTypes Objects EquipmentSets
-#             # key = next(iter(xml)) 
+            xml_files.append(file_path)
+            file_names.append(file_name)
 
-#         if xml_files == []:
-#             continue
+        if len(xml_files) == 0:
+            continue
+            
+        logger.log(logging.DEBUG, f"Merging {len(xml_files)} files. {file_names}")
+        merged = merge_xml(xml_files)
 
-#         logger.log(logging.DEBUG, f"Merging {file_names}")
-#         merged = merge_xml(xml_files)
-
-#         save_text(f"output/current/merged", f"{merge_file}.xml", merged)
-#         logger.log(logging.INFO, f"Successfully merged {len(file_names)} xml files into {merge_file}.xml")
-
+        output_file = output_dir / "xml" / f"{output_file_name}.xml"
+        write_file(output_file, merged, overwrite=True)
+        logger.log(logging.INFO, f"Successfully merged {len(file_names)} files into {output_file_name}.xml")
+        
+        # TODO: convert to json (see nrelay code)
