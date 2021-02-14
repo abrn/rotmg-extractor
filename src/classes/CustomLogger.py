@@ -1,5 +1,7 @@
 import logging
 import sys
+from datetime import datetime
+from pathlib import Path
 
 from classes import Constants
 
@@ -12,8 +14,13 @@ class Logger:
     def setup(self):
         self.logger.addFilter(IndentFilter())
 
+        # formatter = logging.Formatter(
+        #     fmt="%(asctime)s %(levelname)-8s %(indent_level)s %(message)s",
+        #     datefmt="%Y-%m-%d %I:%M:%S %p"
+        # )
+
         formatter = logging.Formatter(
-            fmt="%(asctime)s %(levelname)-8s %(indent_level)s %(message)s",
+            fmt="%(indent_level)s%(message)s",
             datefmt="%Y-%m-%d %I:%M:%S %p"
         )
 
@@ -23,6 +30,7 @@ class Logger:
         self.logger.addHandler(syslog)
 
         # Log to file ./temp/current/log.txt
+        Path(Constants.WORK_DIR).mkdir(parents=True, exist_ok=True)
         filelog = logging.FileHandler(
             filename=Constants.WORK_DIR / "log.txt",
             mode="w"  # clear log first
@@ -30,9 +38,10 @@ class Logger:
         filelog.setFormatter(formatter)
         self.logger.addHandler(filelog)
 
-        # self.logger.setLevel(logging.NOTSET)
         # self.logger.setLevel(logging.DEBUG)
         self.logger.setLevel(logging.INFO)
+        self.log(logging.INFO, str(datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S %z %Z")))
+        # self.log(logging.INFO, str(datetime.now().astimezone().tzinfo))
 
     def log(self, level, msg):
         return self.logger.log(level, msg)
