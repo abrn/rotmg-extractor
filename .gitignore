@@ -4,3 +4,7 @@ src/temp
 venv
 .idea
 __pycache__/
+*.stackdump
+*.code-workspace
+.vscode
+src/test.py

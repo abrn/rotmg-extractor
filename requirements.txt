@@ -1,2 +1,0 @@
-xmltodict~=0.12.0
-UnityPy~=1.5.3.3
