@@ -5,8 +5,7 @@ import logging
 from pathlib import Path
 from xml.etree import ElementTree
 
-from classes import logger
-from classes import Constants
+from classes import logger, IndentFilter
 
 # def delete_dir_contents(dir_path):
 #     for filename in os.listdir(dir_path):
@@ -83,7 +82,7 @@ def merge_xml(files):
     return ElementTree.tostring(xml_data).decode("utf-8")
 
 
-def archive_build_assets(input_path: Path, output_path: Path, file_name="build", format="zip"):
+def archive_build_assets(input_path: Path, output_path: Path, file_name="unity_assets", format="zip"):
     logger.log(logging.INFO, "Archiving build assets...")
 
     # gztar includes the entire directory structure (C:\Users\...)
@@ -96,4 +95,6 @@ def archive_build_assets(input_path: Path, output_path: Path, file_name="build",
     )
 
     # rel_output_path = input_path.relative_to(Constants.SRC_DIR)
+    IndentFilter.level += 1
     logger.log(logging.INFO, f"Build files archived ({output_path / file_name}.{format})")
+    IndentFilter.level -= 1
