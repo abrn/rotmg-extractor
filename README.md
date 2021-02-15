@@ -1,42 +1,45 @@
 # RotMG Resource Extractor
 
-Directory Structure
+## Directory Structure
 
 ```
-src
-	temp
-		current #contains output from files, before publishing on webserver
-			log.txt
-			
-			production
-				client
-				launcher
-			testing
-				client
-				launcher
-			
-			
-		files # contains files downloaded from the cdn
-			production
-				client
-				launcher
-			testing
-				client
-				launcher
+src/
+    temp/
+        current/
+            log.txt
+            {prod_name}/
+                app_settings.xml
+                client/
+                    build_hash.txt
+                    exalt_version.txt
+                    unity_assets.zip
+                    unity_assets/
+                    xml/
+                launcher/
+                    build_hash.txt
+                    unity_assets.zip
+                    unity_assets/
 
+        files/
+            {prod_name}/
+                client/
+                launcher/
+                    Installer.exe
+                    programfiles/
 
-	output # published on the webserver
-	
-		production
-			client
-				build_hash.txt
-				build_version.txt
-				build.zip
-				assets/TextAsset
-			launcher
-				build_hash.txt
-		testing
-	
-		copy temp/current
-		to output/current and output/build_hash
+        output/
+            README.txt
+            last_updated.txt
+            current/
+            {build_hash}/
+                {prod_name}/
+                    client/
+                    launcher/
+```
+Directory meanings:
+```
+src/temp            -- Temp directory cleared everytime the program is run
+src/temp/current    -- Work directory to extract everything before publishing to ouput_dir
+src/temp/files      -- Temp directory to download files to
+src/output          -- Public directory on the webserver
 ```
