@@ -5,6 +5,7 @@ from classes import AppSettings
 from classes import logger
 from classes import Constants
 from functions import *
+from functions.UnpackLauncher import unpack_launcher_assets
 
 def extract(prod_name, app_settings: AppSettings):
 
@@ -33,12 +34,13 @@ def extract(prod_name, app_settings: AppSettings):
 def extract_client(prod_name, app_settings, files_dir, work_dir):
     """ download and extract the latest production/testing client build """
     
-    if not app_settings["build_hash"]:
-        logger.log(logging.WARNING, f"{prod_name} Client does not have a build available.")
-        return
-
     logger.log(logging.INFO, f"Extracting {prod_name} Client")
     IndentFilter.level += 1
+
+    if not app_settings["build_hash"]:
+        logger.log(logging.WARNING, f"{prod_name} does not have a client build available.")
+        IndentFilter.level -= 1
+        return
 
     logger.log(logging.INFO, f"Build Hash is {app_settings['build_hash']}")
     write_file(work_dir / "build_hash.txt", app_settings["build_hash"], overwrite=True)
@@ -56,7 +58,6 @@ def extract_client(prod_name, app_settings, files_dir, work_dir):
     logger.log(logging.INFO, f"Build URL is {build_url}")
 
     # Download all build assets
-    download_asset(build_url, "/", "checksum.json", files_dir, gz=False)
     download_client_assets(build_url, files_dir)
 
     archive_build_assets(files_dir, work_dir)
@@ -79,20 +80,50 @@ def extract_client(prod_name, app_settings, files_dir, work_dir):
 
     IndentFilter.level -= 1
 
-    pass
 
 def extract_launcher(prod_name, app_settings, files_dir, work_dir):
     # https://rotmg-build.decagames.com/launcher-release/d554e291899750f9d36c750798e85646/RotMG-Exalt-Installer.exe
     
     if not app_settings["build_hash"]:
-        logger.log(logging.WARNING, f"{prod_name} Launcher does not have a build available.")
+        logger.log(logging.WARNING, f"{prod_name} does not have a launcher build available.")
         return
 
     logger.log(logging.INFO, f"Extracting {prod_name} Launcher")
     IndentFilter.level += 1
-    # TODO
-    IndentFilter.level -= 1
 
+    logger.log(logging.INFO, f"Build Hash is {app_settings['build_hash']}")
+    write_file(work_dir / "build_hash.txt", app_settings["build_hash"], overwrite=True)
+
+    # Compare build hash
+    build_hash_file = Constants.OUTPUT_DIR / "current" / prod_name / "launcher" / "build_hash.txt"
+    if os.path.isfile(build_hash_file):
+        current_build_hash = read_file(build_hash_file)
+        if current_build_hash == app_settings["build_hash"]:
+            logger.log(logging.INFO, f"Current build hash is equal, aborting.")
+            IndentFilter.level -= 1
+  
+
+    # Not really a "build url" to use, the only file on the launcher cdn is {build_id}.exe
+    # E.g. https://rotmg-build.decagames.com/launcher-release/d554e291899750f9d36c750798e85646/RotMG-Exalt-Installer.exe
+    build_url = app_settings["build_cdn"] + app_settings["build_hash"] + "/" + app_settings["build_id"]
+    launcher_name = app_settings["build_id"] + ".exe"
+
+    # Download RotMG-Exalt-Installer.exe
+    launcher_downloaded = download_asset(build_url, "", ".exe", files_dir, gz=False)
+    if not launcher_downloaded:
+        logger.log(logging.ERROR, f"{prod_name} has no launcher build available or we failed to download it! Aborting.")
+        return
+
+    # Extract files from launcher
+    # There is no checksum.json to download all build files from - so instead we
+    # must extract the files from .exe. 
+    unpack_launcher_assets(files_dir / launcher_name, files_dir.parent)
+
+    archive_build_assets(files_dir, work_dir)
+
+    extract_all_assets(files_dir / "programfiles" / "RotMG Exalt Launcher_Data", work_dir / "unity_assets")
+
+    IndentFilter.level -= 1
 
 def main():
 
