@@ -200,3 +200,5 @@ def merge_xml_files(manifest_file, input_dir: Path, output_dir: Path):
         logger.log(logging.INFO, f"Successfully merged {len(file_names)} files into {output_file_name}.xml")
         
         # TODO: convert to json (see nrelay code)
+
+    IndentFilter.level -= 1
