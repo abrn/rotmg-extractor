@@ -1,23 +1,5 @@
 # RotMG Resource Extractor
 
-## TODO
-Create diff:
-  Either generate a static html/txt file
-  or use a git repository (unlikely, we ~1.25gb of files every release, that
-  shit will build up hellllla quick)
-
-When download a URL apply use the rename_duplicate_file function
-
-When downloading all client assets, preserve the original directory structure
-
-Append to main to autoloop the function (instead of crontab)
-We do this so we don't accidentally run the script while it's already running
-(in the middle of extracting a build)
-```
-sleep(5 * 60)
-main()
-```
-
 ## Directory Structure
 
 ```
