@@ -1,6 +1,7 @@
 
 import os
 import urllib
+from urllib.error import HTTPError
 import shutil
 import ntpath
 import gzip
@@ -24,20 +25,29 @@ def download_asset(build_url, url_path, file_name, output_path, gz=True):
     gz          -- If the file is stored on the CDN as a gzipped archive, and should be extracted. Default is True
     """
 
+    # TODO: Retain filepaths
+
     ext = ""
-    if (gz):
+    if gz:
         ext = ".gz"
 
     download_url = build_url + url_path + file_name + ext
     download_url = download_url.replace(" ", "%20")
 
+    # file doesn't have a name, only extension
+    if "." in file_name and Path(file_name).stem == file_name:
+        file_name = Path(download_url).name
+
     Path(output_path).mkdir(parents=True, exist_ok=True)
     output_file = output_path / file_name
 
     logger.log(logging.DEBUG, f"Downloading {download_url}")
-    IndentFilter.level += 1
 
-    urllib.request.urlretrieve(download_url, f"{output_file}{ext}")
+    try:
+        urllib.request.urlretrieve(download_url, f"{output_file}{ext}")
+    except HTTPError as e:
+        logger.log(logging.ERROR, f"Error downloading \"{download_url}\". Error: {e.code} {e.msg}")
+        return False
 
     if gz:
         logger.log(logging.DEBUG, f"Extracting {file_name}{ext}")
@@ -48,8 +58,7 @@ def download_asset(build_url, url_path, file_name, output_path, gz=True):
         os.remove(f"{output_file}{ext}")
 
     logger.log(logging.INFO, f"Downloaded {file_name}")
-    IndentFilter.level -= 1
-
+    return True
 
 def download_client_assets(build_url, output_path):
     """ Downloads and extracts all the client assets """
@@ -60,6 +69,7 @@ def download_client_assets(build_url, output_path):
     download_asset(build_url, "/", "checksum.json", output_path, gz=False)
     checksum_data = read_json(checksum_file)
 
+    IndentFilter.level += 1
     for file in checksum_data["files"]:
         file_name = ntpath.basename(file["file"])
         file_dir = ntpath.dirname(file["file"])
@@ -70,3 +80,5 @@ def download_client_assets(build_url, output_path):
             file_dir = "/" + file_dir + "/"
 
         download_asset(build_url, file_dir, file_name, output_path, gz=True)
+
+    IndentFilter.level -= 1
