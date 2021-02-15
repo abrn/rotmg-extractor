@@ -64,9 +64,9 @@ def extract_assets(file_path, output_path):
     logger.log(logging.INFO, f"Extracting assets from \"{file_name}\"")
     IndentFilter.level += 1
 
-    obj_type_len = 0    #13
-    obj_name_len = 0    #35
-    path_id_len = 0    #6
+    obj_type_len = 0  # 13
+    obj_name_len = 0  # 35
+    path_id_len = 0  # 6
 
     env = UnityPy.load(file_path)
     for obj in env.objects:
@@ -91,7 +91,7 @@ def extract_assets(file_path, output_path):
                 ext = "xml"
             elif first_line.startswith("{") or first_line.startswith("["):
                 ext = "json"
-            
+
             output_file = output_path / str(obj.type) / f"{obj_name}.{ext}"
             write_file(output_file, data.script, "wb")
 
@@ -114,14 +114,14 @@ def extract_assets(file_path, output_path):
 
             # logger.log(logging.INFO, f"{str(obj.type)} {obj_name} {obj.path_id} {file_name}")
             # logger.log(logging.INFO, f"{str(obj.type):<13} {obj_name:<35} {obj.path_id:<6} {file_name}")
-            
+
             if len(str(obj.type)) > obj_type_len:
                 obj_type_len = len(str(obj.type)) + 1
             if len(obj_name) > obj_name_len:
                 obj_name_len = len(obj_name) + 1
             if len(str(obj.path_id)) > path_id_len:
                 path_id_len = len(str(obj.path_id)) + 2
-            
+
             logger.log(logging.INFO, "{:<{}} {:<{}} {:<{}}".format(
                 obj_name, obj_name_len,
                 str(obj.type), obj_type_len,
@@ -129,8 +129,6 @@ def extract_assets(file_path, output_path):
             ))
 
     IndentFilter.level -= 1
-                
-        
 
 
 def get_version_string(metadata_file):
@@ -191,14 +189,14 @@ def merge_xml_files(manifest_file, input_dir: Path, output_dir: Path):
 
         if len(xml_files) == 0:
             continue
-            
+
         logger.log(logging.DEBUG, f"Merging {len(xml_files)} files. {file_names}")
         merged = merge_xml(xml_files)
 
         output_file = output_dir / "xml" / f"{output_file_name}.xml"
         write_file(output_file, merged, overwrite=True)
         logger.log(logging.INFO, f"Successfully merged {len(file_names)} files into {output_file_name}.xml")
-        
+
         # TODO: convert to json (see nrelay code)
 
     IndentFilter.level -= 1

@@ -7,6 +7,7 @@ from classes import Constants
 from functions import *
 from functions.UnpackLauncher import unpack_launcher_assets
 
+
 def extract(prod_name, app_settings: AppSettings):
 
     # Production -> production
@@ -22,10 +23,20 @@ def extract(prod_name, app_settings: AppSettings):
         overwrite=True
     )
 
-    # Extract client, launcher
-    extract_client(prod_name, app_settings.client, files_dir / "client", work_dir / "client")
-    extract_launcher(prod_name, app_settings.launcher, files_dir / "launcher", work_dir / "launcher")
-    
+    # Extract client
+    extract_client(
+        prod_name,
+        app_settings.client,
+        files_dir / "client", work_dir / "client"
+    )
+
+    # Extract launcher
+    extract_launcher(
+        prod_name,
+        app_settings.launcher,
+        files_dir / "launcher", work_dir / "launcher"
+    )
+
     # TODO:
     # git commit?
     # generate diff (text and html)
@@ -33,7 +44,7 @@ def extract(prod_name, app_settings: AppSettings):
 
 def extract_client(prod_name, app_settings, files_dir, work_dir):
     """ download and extract the latest production/testing client build """
-    
+
     logger.log(logging.INFO, f"Extracting {prod_name} Client")
     IndentFilter.level += 1
 
@@ -83,7 +94,7 @@ def extract_client(prod_name, app_settings, files_dir, work_dir):
 
 def extract_launcher(prod_name, app_settings, files_dir, work_dir):
     # https://rotmg-build.decagames.com/launcher-release/d554e291899750f9d36c750798e85646/RotMG-Exalt-Installer.exe
-    
+
     if not app_settings["build_hash"]:
         logger.log(logging.WARNING, f"{prod_name} does not have a launcher build available.")
         return
@@ -101,7 +112,6 @@ def extract_launcher(prod_name, app_settings, files_dir, work_dir):
         if current_build_hash == app_settings["build_hash"]:
             logger.log(logging.INFO, f"Current build hash is equal, aborting.")
             IndentFilter.level -= 1
-  
 
     # Not really a "build url" to use, the only file on the launcher cdn is {build_id}.exe
     # E.g. https://rotmg-build.decagames.com/launcher-release/d554e291899750f9d36c750798e85646/RotMG-Exalt-Installer.exe
@@ -114,9 +124,8 @@ def extract_launcher(prod_name, app_settings, files_dir, work_dir):
         logger.log(logging.ERROR, f"{prod_name} has no launcher build available or we failed to download it! Aborting.")
         return
 
-    # Extract files from launcher
-    # There is no checksum.json to download all build files from - so instead we
-    # must extract the files from .exe. 
+    # Extract files from launcher There is no checksum.json to download all
+    # build files from - so instead we must extract the files from .exe.
     unpack_launcher_assets(files_dir / launcher_name, files_dir.parent)
 
     archive_build_assets(files_dir, work_dir)
@@ -125,11 +134,12 @@ def extract_launcher(prod_name, app_settings, files_dir, work_dir):
 
     IndentFilter.level -= 1
 
+
 def main():
 
     # Delete previous contents of ./temp/
     shutil.rmtree(Constants.TEMP_DIR, ignore_errors=True)
-    sleep(5) # Wait for filesystem to catch up / prevent bugs
+    sleep(5)  # Wait for filesystem to catch up / prevent bugs
 
     # Setup logger
     logger.setup()

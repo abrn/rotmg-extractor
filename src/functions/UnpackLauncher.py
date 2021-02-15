@@ -3,7 +3,8 @@ import os
 import subprocess
 
 from classes import Constants, logger
-from classes.CustomLogger import IndentFilter 
+from classes.CustomLogger import IndentFilter
+
 
 def unpack_launcher_assets(launcher_path, output_path):
 

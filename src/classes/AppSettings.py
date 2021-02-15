@@ -23,7 +23,6 @@ class AppSettings:
         self.client["build_version"] = data["AppSettings"].get("BuildVersion")
         self.client["build_cdn"] = data["AppSettings"].get("BuildCDN")
 
-
         # <LauncherBuildId>RotMG-Exalt-Installer</LauncherBuildId>
         # <LauncherBuildHash>d554e291899750f9d36c750798e85646</LauncherBuildHash>
         # <LauncherBuildVersion>386777c109b1f7385ab1636bc7e82a1d7f451352</LauncherBuildVersion>

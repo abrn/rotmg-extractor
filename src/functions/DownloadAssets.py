@@ -60,6 +60,7 @@ def download_asset(build_url, url_path, file_name, output_path, gz=True):
     logger.log(logging.INFO, f"Downloaded {file_name}")
     return True
 
+
 def download_client_assets(build_url, output_path):
     """ Downloads and extracts all the client assets """
 
