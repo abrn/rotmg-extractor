@@ -12,12 +12,12 @@ src/
                 client/
                     build_hash.txt
                     exalt_version.txt
-                    unity_assets.zip
+                    build_assets.zip
                     unity_assets/
                     xml/
                 launcher/
                     build_hash.txt
-                    unity_assets.zip
+                    build_assets.zip
                     unity_assets/
 
         files/

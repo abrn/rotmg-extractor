@@ -82,7 +82,7 @@ def merge_xml(files):
     return ElementTree.tostring(xml_data).decode("utf-8")
 
 
-def archive_build_assets(input_path: Path, output_path: Path, file_name="unity_assets", format="zip"):
+def archive_build_assets(input_path: Path, output_path: Path, file_name="build_assets", format="zip"):
     logger.log(logging.INFO, "Archiving build assets...")
 
     # gztar includes the entire directory structure (C:\Users\...)
@@ -90,7 +90,7 @@ def archive_build_assets(input_path: Path, output_path: Path, file_name="unity_a
     # zip is the only one that actually works
     shutil.make_archive(
         base_name=output_path / file_name,
-        format="zip",
+        format=format,
         root_dir=input_path
     )
 
