@@ -10,162 +10,82 @@ from functions import *
 from functions.UnpackLauncher import unpack_launcher_assets
 
 
-def extract(prod_name, app_settings: AppSettings):
+def extract_build(prod_name, build_name, app_settings):
+    """ Download and extract a production or testing, client or launcher
+    
+    Params
+    prod_name       -- "Production" or "Testing"
+    build_name      -- "Client" or "Launcher"
+    app_settings    -- An object containing the build's AppSettings' (build id/hash/version/cdn)
+    """
 
-    # Production -> production
-    work_dir = Constants.WORK_DIR / prod_name.lower()
-    files_dir = Constants.FILES_DIR / prod_name.lower()
+    work_dir: Path = Constants.WORK_DIR / prod_name.lower() / build_name.lower()
+    files_dir: Path = Constants.FILES_DIR / prod_name.lower() / build_name.lower()
+    repo_dir: Path = Constants.REPO_DIR / prod_name.lower() / build_name.lower()
 
-    # Save app_settings to ./current/prod/app_settings.xml
-    write_file(
-        file_path=work_dir / "app_settings.xml",
-        data=app_settings.xml,
-        mode="wb",
-        overwrite=True
-    )
-
-    # Extract client
-    extract_client(
-        prod_name,
-        app_settings.client,
-        files_dir / "client",
-        work_dir / "client"
-    )
-
-    # Extract launcher
-    extract_launcher(
-        prod_name,
-        app_settings.launcher,
-        files_dir / "launcher",
-        work_dir / "launcher"
-    )
-
-    # TODO:
-    # git commit?
-    # generate diff (text and html)
-
-
-def extract_client(prod_name, app_settings, files_dir, work_dir):
-    """ download and extract the latest production/testing client build """
-
-    logger.log(logging.INFO, f"Extracting {prod_name} Client")
+    logger.log(logging.INFO, f"{prod_name} {build_name}")
     IndentFilter.level += 1
-
+    
     if not app_settings["build_hash"]:
         logger.log(logging.WARNING, f"{prod_name} does not have a client build available.")
         IndentFilter.level -= 1
         return
 
-    logger.log(logging.INFO, f"Build Hash is {app_settings['build_hash']}")
-    write_file(work_dir / "build_hash.txt", app_settings["build_hash"], overwrite=True)
-
-    # Compare build hash
-    build_hash_file = Constants.OUTPUT_DIR / "current" / prod_name / "client" / "build_hash.txt"
+    # Compare build hashes
+    build_hash_file = repo_dir / "build_hash.txt"
     if os.path.isfile(build_hash_file):
         current_build_hash = read_file(build_hash_file)
         if current_build_hash == app_settings["build_hash"]:
             logger.log(logging.INFO, f"Current build hash is equal, aborting.")
             IndentFilter.level -= 1
             return
-
+    
     build_url = app_settings["build_cdn"] + app_settings["build_hash"] + "/" + app_settings["build_id"]
     logger.log(logging.INFO, f"Build URL is {build_url}")
 
-    # Download all build assets
-    download_client_assets(build_url, files_dir)
+    # Game assets are easily downloaded using checksum.json, however the
+    # launcher's assets must be unpacked. This leads to different directories
+    # when we need to extract assets later
+    unity_assets_dir = files_dir
 
-    archive_build_assets(files_dir, work_dir)
-
-    version_string = get_version_string(files_dir / "global-metadata.dat")
-    if version_string is None:
-        logger.log(logging.ERROR, "Could not extract version string!")
-        write_file(work_dir / "exalt_version.txt", "")
+    # Download the build's (unity) files
+    if build_name == "Client":
+        download_client_assets(build_url, files_dir)
     else:
-        logger.log(logging.INFO, f"Version string is {version_string}")
-        write_file(work_dir / "exalt_version.txt", version_string)
+        launcher_downloaded = download_asset(build_url, "", ".exe", files_dir, gz=False)
+        if not launcher_downloaded:
+            logger.log(logging.ERROR, f"{prod_name} has no launcher build available or we failed to download it! Aborting.")
+            return
 
-    extract_all_assets(files_dir, work_dir / "unity_assets")
+        launcher_file = app_settings["build_id"] + ".exe"
+        unpack_launcher_assets(files_dir / launcher_file, files_dir)
 
-    manifest_file = work_dir / "unity_assets" / "TextAsset" / "manifest.json"
-    if not os.path.isfile(manifest_file):
-        logger.log(logging.ERROR, f"{prod_name} Client has no manifest.json!")
-    else:
-        merge_xml_files(manifest_file, work_dir / "unity_assets", work_dir)
+        # these directories are outputted by launcher_unpacker.exe
+        unpacked_assets_dir = files_dir / "launcher" / "programfiles" 
 
-    output_dir = Constants.OUTPUT_DIR / prod_name.lower() / "client"
+        if not unpacked_assets_dir.exists():
+            logger.log(logging.ERROR, "Failed to unpack launcher assets, aborting!")
+            return
 
-    logger.log(logging.INFO, f"Deleting {output_dir / 'current'}")
-    shutil.rmtree(output_dir / "current", ignore_errors=True)
-    sleep(5)
+    archive_build_files(unity_assets_dir, work_dir)
 
-    logger.log(logging.INFO, f"Copying output to {output_dir / 'current'}")
-    shutil.copytree(work_dir, output_dir / "current")
+    extracted_assets_dir = work_dir / "extracted_assets"
+    extract_unity_assets(unity_assets_dir, extracted_assets_dir)
 
-    logger.log(logging.INFO, f"Copying output to {output_dir / app_settings['build_hash']}")
-    shutil.copytree(work_dir, output_dir / app_settings["build_hash"])
+    # Build specific things to do afterwards
+    if build_name == "Client":
 
-    timestamp = math.floor(datetime.now().timestamp())
-    write_file(output_dir / "last_updated.txt", str(timestamp), True)
+        # Extract exalt version (e.g. 1.3.2.1.0)
+        extract_exalt_version(files_dir / "global-metadata.dat", work_dir / "exalt_version.txt")
 
+        # Merge useful xml files (objects.xml, groundtypes.xml)
+        merge_xml_files(extracted_assets_dir / "TextAsset" / "manifest.json", extracted_assets_dir, work_dir)
+
+    logger.log(logging.INFO, f"Done extracting {prod_name} {build_name}")
     IndentFilter.level -= 1
 
-
-def extract_launcher(prod_name, app_settings, files_dir, work_dir):
-    # https://rotmg-build.decagames.com/launcher-release/d554e291899750f9d36c750798e85646/RotMG-Exalt-Installer.exe
-
-    if not app_settings["build_hash"]:
-        logger.log(logging.WARNING, f"{prod_name} does not have a launcher build available.")
-        return
-
-    logger.log(logging.INFO, f"Extracting {prod_name} Launcher")
-    IndentFilter.level += 1
-
-    logger.log(logging.INFO, f"Build Hash is {app_settings['build_hash']}")
-    write_file(work_dir / "build_hash.txt", app_settings["build_hash"], overwrite=True)
-
-    # Compare build hash
-    build_hash_file = Constants.OUTPUT_DIR / "current" / prod_name / "launcher" / "build_hash.txt"
-    if os.path.isfile(build_hash_file):
-        current_build_hash = read_file(build_hash_file)
-        if current_build_hash == app_settings["build_hash"]:
-            logger.log(logging.INFO, f"Current build hash is equal, aborting.")
-            IndentFilter.level -= 1
-
-    # Not really a "build url" to use, the only file on the launcher cdn is {build_id}.exe
-    # E.g. https://rotmg-build.decagames.com/launcher-release/d554e291899750f9d36c750798e85646/RotMG-Exalt-Installer.exe
-    build_url = app_settings["build_cdn"] + app_settings["build_hash"] + "/" + app_settings["build_id"]
-    launcher_name = app_settings["build_id"] + ".exe"
-
-    # Download RotMG-Exalt-Installer.exe
-    launcher_downloaded = download_asset(build_url, "", ".exe", files_dir, gz=False)
-    if not launcher_downloaded:
-        logger.log(logging.ERROR, f"{prod_name} has no launcher build available or we failed to download it! Aborting.")
-        return
-
-    # Extract files from launcher There is no checksum.json to download all
-    # build files from - so instead we must extract the files from .exe.
-    unpack_launcher_assets(files_dir / launcher_name, files_dir.parent)
-
-    archive_build_assets(files_dir, work_dir)
-
-    extract_all_assets(files_dir / "programfiles" / "RotMG Exalt Launcher_Data", work_dir / "unity_assets")
-
-    output_dir = Constants.OUTPUT_DIR / prod_name.lower() / "launcher"
-
-    logger.log(logging.INFO, f"Deleting {output_dir / 'current'}")
-    shutil.rmtree(output_dir / "current", ignore_errors=True)
-    sleep(5)
-
-    logger.log(logging.INFO, f"Copying output to {output_dir / 'current'}")
-    shutil.copytree(work_dir, output_dir / "current")
-    
-    logger.log(logging.INFO, f"Copying output to {output_dir / app_settings['build_hash']}")
-    shutil.copytree(work_dir, output_dir / app_settings["build_hash"])
-
     timestamp = math.floor(datetime.now().timestamp())
-    write_file(output_dir / "last_updated.txt", str(timestamp), True)
-
-    IndentFilter.level -= 1
+    write_file(work_dir / "timestamp.txt", str(timestamp), True)
 
 
 def main():
@@ -178,13 +98,12 @@ def main():
     logger.setup()
 
     prod_app_settings = AppSettings(Constants.PROD_URL)
-    extract("Production", prod_app_settings)
+    extract_build("Production", "Client", prod_app_settings.client)
+    extract_build("Production", "Launcher", prod_app_settings.launcher)
 
     test_app_settings = AppSettings(Constants.TESTING_URL)
-    extract("Testing", test_app_settings)
-
-    timestamp = math.floor(datetime.now().timestamp())
-    write_file(Constants.OUTPUT_DIR / "last_updated.txt", str(timestamp), True)
+    extract_build("Testing", "Client", test_app_settings.client)
+    extract_build("Testing", "Launcher", test_app_settings.launcher)
 
     logger.log(logging.INFO, "Done!")
 

@@ -82,8 +82,8 @@ def merge_xml(files):
     return ElementTree.tostring(xml_data).decode("utf-8")
 
 
-def archive_build_assets(input_path: Path, output_path: Path, file_name="build_assets", format="zip"):
-    logger.log(logging.INFO, "Archiving build assets...")
+def archive_build_files(input_path: Path, output_path: Path, file_name="build_files", format="zip"):
+    logger.log(logging.INFO, "Archiving build files...")
 
     # gztar includes the entire directory structure (C:\Users\...)
     # tar includes "." and @PaxHeaders

@@ -7,19 +7,34 @@ TESTING_URL = "https://test.realmofthemadgod.com"
 # URL Paths
 APP_INIT_PATH = f"/app/init?platform=standalonewindows64&key=9KnJFxtTvLu2frXv"
 
-# File Paths (absolute)
+# File Paths
+
+# ./src
 SRC_DIR = pathlib.Path(__file__).parent.parent
 
-OUTPUT_DIR = SRC_DIR / "output"     # Public files on the webserver
+# ./ - repository root
+ROOT_DIR = SRC_DIR.parent
 
-# Temp directory (cleared)
-TEMP_DIR = SRC_DIR / "temp"
+# ./output
+OUTPUT_DIR = ROOT_DIR / "output"
 
-# Used to download files
+# ./output/web - public files on the webserver
+WEB_DIR = OUTPUT_DIR / "web"
+
+# ./output/repo - git repository to automatically commit build updates to, only contains current builds
+REPO_DIR = OUTPUT_DIR / "repo"
+
+# ./output/web - Public files on the webserver
+OUTPUT_DIR = ROOT_DIR / "output"     
+
+# ./output/temp - temporary directory cleared everytime the program is run
+TEMP_DIR = OUTPUT_DIR / "temp"
+
+# ./output/temp/files - temporary file download location
 FILES_DIR = TEMP_DIR / "files"
 
-# Used to generate output files before copying to `OUTPUT_DIR`
-WORK_DIR = TEMP_DIR / "current"
+# ./output/temp/work - temporary location to generate output before being copied to web/repo
+WORK_DIR = TEMP_DIR / "work"
 
 LAUNCHER_UNPACKER_WINDOWS = SRC_DIR / "launcher_unpacker" / "unpacker_win.exe"
 LAUNCHER_UNPACKER_LINUX = SRC_DIR / "launcher_unpacker" / "unpacker_linux"

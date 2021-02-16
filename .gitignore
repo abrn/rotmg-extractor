@@ -1,11 +1,12 @@
-src/output/*
-!src/output/README.txt
-src/temp
+output/repo/*
+output/temp/*
+output/web/*
+!output/web/README.txt
 venv
 .idea
 __pycache__/
 *.stackdump
 *.code-workspace
 .vscode
-src/test*.py
+src/test.py
 TODO.md

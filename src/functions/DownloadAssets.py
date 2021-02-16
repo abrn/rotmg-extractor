@@ -39,7 +39,7 @@ def download_asset(build_url, url_path, file_name, output_path, gz=True):
         file_name = Path(download_url).name
 
     Path(output_path).mkdir(parents=True, exist_ok=True)
-    output_file = output_path / file_name
+    output_file: Path = output_path / file_name
 
     logger.log(logging.DEBUG, f"Downloading {download_url}")
 
@@ -58,19 +58,19 @@ def download_asset(build_url, url_path, file_name, output_path, gz=True):
         os.remove(f"{output_file}{ext}")
 
     logger.log(logging.INFO, f"Downloaded {file_name}")
-    return True
+    return output_file.exists()
 
 
 def download_client_assets(build_url, output_path):
     """ Downloads and extracts all the client assets """
 
     logger.log(logging.INFO, "Downloading all client build assets...")
+    IndentFilter.level += 1
 
     checksum_file = output_path / "checksum.json"
     download_asset(build_url, "/", "checksum.json", output_path, gz=False)
     checksum_data = read_json(checksum_file)
-
-    IndentFilter.level += 1
+    
     for file in checksum_data["files"]:
         file_name = ntpath.basename(file["file"])
         file_dir = ntpath.dirname(file["file"])

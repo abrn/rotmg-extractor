@@ -12,7 +12,7 @@ from pathlib import Path
 from functions.File import *
 
 
-def extract_all_assets(input_dir, output_path):
+def extract_unity_assets(input_dir, output_path):
 
     file_patterns = [
         "^globalgamemanagers",
@@ -131,10 +131,12 @@ def extract_assets(file_path, output_path):
     IndentFilter.level -= 1
 
 
-def get_version_string(metadata_file):
+def extract_exalt_version(metadata_file: Path, output_file: Path):
     """ Attempts to find the current version string (e.g. `1.3.2.0.0`) located in `global-metadata.dat` """
 
     # TODO: Decode/decrypt build version from appsettings
+    # or we could compare all 1.2.3.4.5 strings in the metadata and use the one closest to the
+    # current one (in repo_dir)
 
     # A simple regex to capture "1.3.2.0.0" isn't as simple as there are many
     # strings that match. It just happens that the version string appears in
@@ -147,6 +149,9 @@ def get_version_string(metadata_file):
     # For testing:
     # cat global-metadata.dat | grep --text -Po "127\.0\.0\.1[\x00-\x20]*(\d(?:\.\d){4})"
 
+    logger.log(logging.INFO, "Attempting to extract Exalt version string")
+    IndentFilter.level += 1
+
     pattern = regex.compile(b"127\.0\.0\.1[\x00-\x20]*(\d(?:\.\d){4})")
 
     with open(metadata_file, "rb") as file:
@@ -154,14 +159,24 @@ def get_version_string(metadata_file):
         result = pattern.findall(data)
 
         if len(result) == 1:
-            return result[0].decode("utf-8")
+            version_string = result[0].decode("utf-8")
+            logger.log(logging.INFO, f"Exalt version is \"{version_string}\"")
+            write_file(output_file, version_string)
+        else:
+            logger.log(logging.INFO, "Could not extract version string! Must be manually updated.")
+            write_file(output_file, "")
 
-    return None
+        IndentFilter.level -= 1
 
 
-def merge_xml_files(manifest_file, input_dir: Path, output_dir: Path):
+def merge_xml_files(manifest_file: Path, input_dir: Path, output_dir: Path):
     logger.log(logging.INFO, f"Merging xml files...")
     IndentFilter.level += 1
+
+    if not manifest_file.exists():
+        logger.log(logging.ERROR, f"Unable to find {manifest_file} !")
+        IndentFilter.level -= 1
+        return
 
     manifest = read_json(manifest_file)
     for output_file_name in manifest:
@@ -194,7 +209,7 @@ def merge_xml_files(manifest_file, input_dir: Path, output_dir: Path):
         merged = merge_xml(xml_files)
 
         output_file = output_dir / "xml" / f"{output_file_name}.xml"
-        write_file(output_file, merged, overwrite=True)
+        write_file(output_file, merged, overwrite=False)
         logger.log(logging.INFO, f"Successfully merged {len(file_names)} files into {output_file_name}.xml")
 
         # TODO: convert to json (see nrelay code)

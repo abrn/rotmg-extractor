@@ -3,43 +3,42 @@
 ## Directory Structure
 
 ```
-src/
-    temp/
+output/
+  repo/ - current build
+    testing/
+    production/
+      client/
+        timestamp.txt
+        build_hash.txt
+        exalt_version.txt
+        build_files.zip
+        extracted_assets/
+          TextAsset etc
+      launcher/
+        timestamp.txt
+        build_hash.txt
+        Rotmg-Exalt-Installer.zip
+        build_files.zip
+        extracted_assets/
+
+  web/
+    README.txt
+    last_updated.txt
+    testing
+    production
+      client
+      launcher
         current/
-            log.txt
-            {prod_name}/
-                app_settings.xml
-                client/
-                    build_hash.txt
-                    exalt_version.txt
-                    build_assets.zip
-                    unity_assets/
-                    xml/
-                launcher/
-                    build_hash.txt
-                    build_assets.zip
-                    unity_assets/
+        {build_hash}/
+          # see repo
 
-        files/
-            {prod_name}/
-                client/
-                launcher/
-                    Installer.exe
-                    programfiles/
-
-        output/
-            README.txt
-            last_updated.txt
-            current/
-            {build_hash}/
-                {prod_name}/
-                    client/
-                    launcher/
-```
-Directory meanings:
-```
-src/temp            -- Temp directory cleared everytime the program is run
-src/temp/current    -- Work directory to extract everything before publishing to ouput_dir
-src/temp/files      -- Temp directory to download files to
-src/output          -- Public directory on the webserver
+  temp/
+    files/
+      testing/
+      production/
+        ...
+    work
+      testing/
+      production/
+        # see repo
 ```
