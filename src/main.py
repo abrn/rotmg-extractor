@@ -75,7 +75,7 @@ def extract_client(prod_name, app_settings, files_dir, work_dir):
 
     version_string = get_version_string(files_dir / "global-metadata.dat")
     if version_string is None:
-        logging.error("Could not extract version string!")
+        logger.log(logging.ERROR, "Could not extract version string!")
         write_file(work_dir / "exalt_version.txt", "")
     else:
         logger.log(logging.INFO, f"Version string is {version_string}")

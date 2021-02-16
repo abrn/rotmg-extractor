@@ -103,7 +103,7 @@ def extract_assets(file_path, output_path):
             try:
                 data.image.save(output_file)
             except Exception as e:
-                logging.error(f"Error saving {str(obj.type)} \"{obj_name}\" (Path ID: {obj.path_id} in {file_name}) Error: {e}")
+                logger.log(logging.ERROR, f"Error saving {str(obj.type)} \"{obj_name}\" (Path ID: {obj.path_id} in {file_name}) Error: {e}")
 
         elif obj.type == "AudioClip":
             for name, data in data.samples.items():
