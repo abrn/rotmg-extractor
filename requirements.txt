@@ -1,2 +1,3 @@
 -e git+https://github.com/K0lb3/UnityPy@a754f20728c200f46da5b87743aaa3f4d7533633#egg=UnityPy
-xmltodict==0.12.0
+xmltodict
+requests
