@@ -13,6 +13,7 @@ class Logger:
 
     def setup(self):
         self.logger.addFilter(IndentFilter())
+        self.logger.addFilter(LevelFilter())
 
         # formatter = logging.Formatter(
         #     fmt="%(asctime)s %(levelname)-8s %(indent_level)s %(message)s",
@@ -20,7 +21,7 @@ class Logger:
         # )
 
         formatter = logging.Formatter(
-            fmt="%(indent_level)s%(message)s",
+            fmt="%(indent_level)s%(opt_level)s%(message)s",
             datefmt="%Y-%m-%d %I:%M:%S %p"
         )
 
@@ -55,5 +56,16 @@ class IndentFilter(logging.Filter):
         record.indent_level = " " * (IndentFilter.level * IndentFilter.spaces)
         return True
 
+
+class LevelFilter(logging.Filter):
+    min_level = logging.WARNING
+    def filter(self, record):
+
+        if record.levelno >= LevelFilter.min_level:
+            record.opt_level = record.levelname + ": "
+        else:
+            record.opt_level = ""
+
+        return True 
 
 logger = Logger()
