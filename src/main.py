@@ -1,4 +1,6 @@
 import os
+import math
+from datetime import datetime
 from time import sleep
 
 from classes import AppSettings
@@ -11,9 +13,8 @@ from functions.UnpackLauncher import unpack_launcher_assets
 def extract(prod_name, app_settings: AppSettings):
 
     # Production -> production
-    output_dir = prod_name.strip().lower()
-    work_dir = Constants.WORK_DIR / output_dir
-    files_dir = Constants.FILES_DIR / output_dir
+    work_dir = Constants.WORK_DIR / prod_name.lower()
+    files_dir = Constants.FILES_DIR / prod_name.lower()
 
     # Save app_settings to ./current/prod/app_settings.xml
     write_file(
@@ -27,14 +28,16 @@ def extract(prod_name, app_settings: AppSettings):
     extract_client(
         prod_name,
         app_settings.client,
-        files_dir / "client", work_dir / "client"
+        files_dir / "client",
+        work_dir / "client"
     )
 
     # Extract launcher
     extract_launcher(
         prod_name,
         app_settings.launcher,
-        files_dir / "launcher", work_dir / "launcher"
+        files_dir / "launcher",
+        work_dir / "launcher"
     )
 
     # TODO:
@@ -89,6 +92,21 @@ def extract_client(prod_name, app_settings, files_dir, work_dir):
     else:
         merge_xml_files(manifest_file, work_dir / "unity_assets", work_dir)
 
+    output_dir = Constants.OUTPUT_DIR / prod_name.lower() / "client"
+
+    logger.log(logging.INFO, f"Deleting {output_dir / 'current'}")
+    shutil.rmtree(output_dir / "current", ignore_errors=True)
+    sleep(5)
+
+    logger.log(logging.INFO, f"Copying output to {output_dir / 'current'}")
+    shutil.copytree(work_dir, output_dir / "current")
+
+    logger.log(logging.INFO, f"Copying output to {output_dir / app_settings['build_hash']}")
+    shutil.copytree(work_dir, output_dir / app_settings["build_hash"])
+
+    timestamp = math.floor(datetime.now().timestamp())
+    write_file(output_dir / "last_updated.txt", str(timestamp), True)
+
     IndentFilter.level -= 1
 
 
@@ -132,6 +150,21 @@ def extract_launcher(prod_name, app_settings, files_dir, work_dir):
 
     extract_all_assets(files_dir / "programfiles" / "RotMG Exalt Launcher_Data", work_dir / "unity_assets")
 
+    output_dir = Constants.OUTPUT_DIR / prod_name.lower() / "launcher"
+
+    logger.log(logging.INFO, f"Deleting {output_dir / 'current'}")
+    shutil.rmtree(output_dir / "current", ignore_errors=True)
+    sleep(5)
+
+    logger.log(logging.INFO, f"Copying output to {output_dir / 'current'}")
+    shutil.copytree(work_dir, output_dir / "current")
+    
+    logger.log(logging.INFO, f"Copying output to {output_dir / app_settings['build_hash']}")
+    shutil.copytree(work_dir, output_dir / app_settings["build_hash"])
+
+    timestamp = math.floor(datetime.now().timestamp())
+    write_file(output_dir / "last_updated.txt", str(timestamp), True)
+
     IndentFilter.level -= 1
 
 
@@ -150,6 +183,10 @@ def main():
     test_app_settings = AppSettings(Constants.TESTING_URL)
     extract("Testing", test_app_settings)
 
+    timestamp = math.floor(datetime.now().timestamp())
+    write_file(Constants.OUTPUT_DIR / "last_updated.txt", str(timestamp), True)
+
+    logger.log(logging.INFO, "Done!")
 
 if __name__ == "__main__":
     main()
