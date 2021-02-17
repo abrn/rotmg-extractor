@@ -5,7 +5,6 @@ import pathlib
 #############
 PROD_URL = "https://www.realmofthemadgod.com"
 TESTING_URL = "https://test.realmofthemadgod.com"
-REPO_URL = "https://git.extacy.cc/Extacy/test"
 
 
 #############
