@@ -1,14 +1,14 @@
 import logging
 import os
+import subprocess
 import re as regex
 import ntpath
 import UnityPy
+from pathlib import Path
 # from xml.etree import ElementTree
 
 from classes import Constants
 from classes import logger, IndentFilter
-from pathlib import Path
-
 from functions.File import *
 
 
@@ -29,9 +29,12 @@ def extract_unity_assets(input_dir, output_path):
     logger.log(logging.INFO, "Extracting build assets...")
     IndentFilter.level += 1
 
+    # Get the _Data directory (where the unity files are located)
+    data_dir = search_dir(input_dir, "*_Data")
+
     # Iterate files
-    for file_name in os.listdir(input_dir):
-        file_path = os.path.join(input_dir, file_name)
+    for file_name in os.listdir(data_dir):
+        file_path = os.path.join(data_dir, file_name)
 
         if not os.path.isfile(file_path):
             continue
@@ -128,6 +131,28 @@ def extract_assets(file_path, output_path):
                 f"(Path ID: {obj.path_id})", path_id_len
             ))
 
+    IndentFilter.level -= 1
+
+
+def unpack_launcher_assets(launcher_path, output_path):
+
+    unpacker_file = None
+    if os.name == "nt":
+        unpacker_file = Constants.LAUNCHER_UNPACKER_WINDOWS
+    elif os.name == "posix":
+        unpacker_file = Constants.LAUNCHER_UNPACKER_LINUX
+    else:
+        return
+
+    logger.log(logging.INFO, "Unpacking launcher assets...")
+    IndentFilter.level += 1
+
+    subprocess.run(
+        [unpacker_file, launcher_path, output_path],
+        stdout=subprocess.DEVNULL,
+    )
+
+    logger.log(logging.INFO, "Done!")
     IndentFilter.level -= 1
 
 

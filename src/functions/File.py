@@ -35,6 +35,11 @@ def read_file(file_path):
         return file.read()
 
 
+def search_dir(dir: Path, search):
+    result = list(dir.glob(search))
+    return next(iter(result))
+
+
 def rename_duplicate_file(file_path, sep="-"):
     """ Rename a file path if there is a duplicate file. E.g. Untitled-1 or Untitled-2 """
 

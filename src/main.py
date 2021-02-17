@@ -7,7 +7,6 @@ from classes import AppSettings
 from classes import logger
 from classes import Constants
 from functions import *
-from functions.UnpackLauncher import unpack_launcher_assets
 
 
 def extract_build(prod_name, build_name, app_settings):
@@ -33,7 +32,7 @@ def extract_build(prod_name, build_name, app_settings):
 
     # Compare build hashes
     build_hash_file = repo_dir / "build_hash.txt"
-    if os.path.isfile(build_hash_file):
+    if build_hash_file.is_file():
         current_build_hash = read_file(build_hash_file)
         if current_build_hash == app_settings["build_hash"]:
             logger.log(logging.INFO, f"Current build hash is equal, aborting.")
@@ -46,7 +45,7 @@ def extract_build(prod_name, build_name, app_settings):
     # Game assets are easily downloaded using checksum.json, however the
     # launcher's assets must be unpacked. This leads to different directories
     # when we need to extract assets later
-    unity_assets_dir = files_dir
+    build_assets_dir = files_dir
 
     # Download the build's (unity) files
     if build_name == "Client":
@@ -55,28 +54,32 @@ def extract_build(prod_name, build_name, app_settings):
         launcher_downloaded = download_asset(build_url, "", ".exe", files_dir, gz=False)
         if not launcher_downloaded:
             logger.log(logging.ERROR, f"{prod_name} has no launcher build available or we failed to download it! Aborting.")
+            IndentFilter.level -= 1
             return
 
+        # The only file on the cdn is RotMG-Exalt-Installer.exe (build_id + .exe)
         launcher_file = app_settings["build_id"] + ".exe"
         unpack_launcher_assets(files_dir / launcher_file, files_dir)
 
         # these directories are outputted by launcher_unpacker.exe
-        unpacked_assets_dir = files_dir / "launcher" / "programfiles" 
-
-        if not unpacked_assets_dir.exists():
+        build_assets_dir = files_dir / "launcher" / "programfiles" 
+        if not build_assets_dir.exists():
             logger.log(logging.ERROR, "Failed to unpack launcher assets, aborting!")
+            IndentFilter.level -= 1
             return
 
-    archive_build_files(unity_assets_dir, work_dir)
+
+    archive_build_files(build_assets_dir, work_dir)
 
     extracted_assets_dir = work_dir / "extracted_assets"
-    extract_unity_assets(unity_assets_dir, extracted_assets_dir)
+    extract_unity_assets(build_assets_dir, extracted_assets_dir)
 
     # Build specific things to do afterwards
     if build_name == "Client":
 
         # Extract exalt version (e.g. 1.3.2.1.0)
-        extract_exalt_version(files_dir / "global-metadata.dat", work_dir / "exalt_version.txt")
+        metadata_file = files_dir / "RotMG Exalt_Data" / "il2cpp_data" / "Metadata" / "global-metadata.dat"
+        extract_exalt_version(metadata_file, work_dir / "exalt_version.txt")
 
         # Merge useful xml files (objects.xml, groundtypes.xml)
         merge_xml_files(extracted_assets_dir / "TextAsset" / "manifest.json", extracted_assets_dir, work_dir)
@@ -85,7 +88,10 @@ def extract_build(prod_name, build_name, app_settings):
     IndentFilter.level -= 1
 
     timestamp = math.floor(datetime.now().timestamp())
-    write_file(work_dir / "timestamp.txt", str(timestamp), True)
+    write_file(work_dir / "timestamp.txt", str(timestamp))
+
+    # TODO:
+    # del prev and  Copy to repo
 
 
 def main():

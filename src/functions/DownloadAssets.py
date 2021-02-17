@@ -10,6 +10,7 @@ from pathlib import Path
 
 from classes import Constants
 from classes import logger, IndentFilter
+from functions.ExtractAssets import unpack_launcher_assets
 from .File import read_json
 
 
@@ -24,8 +25,6 @@ def download_asset(build_url, url_path, file_name, output_path, gz=True):
     output_path  -- The output directory of the file. Default is "./temp"
     gz          -- If the file is stored on the CDN as a gzipped archive, and should be extracted. Default is True
     """
-
-    # TODO: Retain filepaths
 
     ext = ""
     if gz:
@@ -62,9 +61,9 @@ def download_asset(build_url, url_path, file_name, output_path, gz=True):
 
 
 def download_client_assets(build_url, output_path):
-    """ Downloads and extracts all the client assets """
+    """ Downloads all the client assets, automatically extracting gzipped files """
 
-    logger.log(logging.INFO, "Downloading all client build assets...")
+    logger.log(logging.INFO, "Downloading client build assets...")
     IndentFilter.level += 1
 
     checksum_file = output_path / "checksum.json"
@@ -75,11 +74,14 @@ def download_client_assets(build_url, output_path):
         file_name = ntpath.basename(file["file"])
         file_dir = ntpath.dirname(file["file"])
 
+        # Retain directory structure
+        output_file_dir = output_path / file_dir
+
         if file_dir == "":
             file_dir = "/"
         else:
             file_dir = "/" + file_dir + "/"
 
-        download_asset(build_url, file_dir, file_name, output_path, gz=True)
+        download_asset(build_url, file_dir, file_name, output_file_dir, gz=True)
 
     IndentFilter.level -= 1
