@@ -39,6 +39,8 @@ def extract_build(prod_name, build_name, app_settings):
             IndentFilter.level -= 1
             return
     
+    write_file(work_dir / "build_hash.txt", app_settings["build_hash"])
+
     build_url = app_settings["build_cdn"] + app_settings["build_hash"] + "/" + app_settings["build_id"]
     logger.log(logging.INFO, f"Build URL is {build_url}")
 
