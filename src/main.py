@@ -1,4 +1,5 @@
 import os
+import shutil
 import math
 from datetime import datetime
 from time import sleep
@@ -76,24 +77,34 @@ def extract_build(prod_name, build_name, app_settings):
     extracted_assets_dir = work_dir / "extracted_assets"
     extract_unity_assets(build_assets_dir, extracted_assets_dir)
 
+    exalt_version = ""
+
     # Build specific things to do afterwards
     if build_name == "Client":
 
         # Extract exalt version (e.g. 1.3.2.1.0)
         metadata_file = files_dir / "RotMG Exalt_Data" / "il2cpp_data" / "Metadata" / "global-metadata.dat"
-        extract_exalt_version(metadata_file, work_dir / "exalt_version.txt")
+        exalt_version = extract_exalt_version(metadata_file, work_dir / "exalt_version.txt")
 
         # Merge useful xml files (objects.xml, groundtypes.xml)
         merge_xml_files(extracted_assets_dir / "TextAsset" / "manifest.json", extracted_assets_dir, work_dir)
 
-    logger.log(logging.INFO, f"Done extracting {prod_name} {build_name}")
-    IndentFilter.level -= 1
-
     timestamp = math.floor(datetime.now().timestamp())
     write_file(work_dir / "timestamp.txt", str(timestamp))
 
-    # TODO:
-    # del prev and  Copy to repo
+    # Commit the changes to the repo
+    shutil.rmtree(repo_dir, ignore_errors=True)
+    sleep(2)
+    shutil.copytree(work_dir, repo_dir)
+    sleep(2)
+
+    if build_name == "Client":
+        commit_new_build(prod_name, build_name, app_settings, exalt_version)
+    else:
+        commit_new_build(prod_name, build_name, app_settings)
+
+    logger.log(logging.INFO, f"Done {prod_name} {build_name}")
+    IndentFilter.level -= 1
 
 
 def main():

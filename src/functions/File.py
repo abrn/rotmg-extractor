@@ -4,7 +4,6 @@ import json
 import logging
 from pathlib import Path
 from xml.etree import ElementTree
-
 from classes import logger, IndentFilter
 
 # def delete_dir_contents(dir_path):

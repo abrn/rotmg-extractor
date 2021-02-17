@@ -1,13 +1,22 @@
 import pathlib
 
-# URL Hosts
+#############
+# URL Hosts #
+#############
 PROD_URL = "https://www.realmofthemadgod.com"
 TESTING_URL = "https://test.realmofthemadgod.com"
+REPO_URL = "https://git.extacy.cc/Extacy/test"
 
-# URL Paths
+
+#############
+# URL Paths #
+#############
 APP_INIT_PATH = f"/app/init?platform=standalonewindows64&key=9KnJFxtTvLu2frXv"
 
-# File Paths
+
+##############
+# File Paths #
+##############
 
 # ./src
 SRC_DIR = pathlib.Path(__file__).parent.parent

@@ -179,6 +179,7 @@ def extract_exalt_version(metadata_file: Path, output_file: Path):
 
     pattern = regex.compile(b"127\.0\.0\.1[\x00-\x20]*(\d(?:\.\d){4})")
 
+    version_string = ""
     with open(metadata_file, "rb") as file:
         data = file.read()
         result = pattern.findall(data)
@@ -191,7 +192,8 @@ def extract_exalt_version(metadata_file: Path, output_file: Path):
             logger.log(logging.INFO, "Could not extract version string! Must be manually updated.")
             write_file(output_file, "")
 
-        IndentFilter.level -= 1
+    IndentFilter.level -= 1
+    return version_string
 
 
 def merge_xml_files(manifest_file: Path, input_dir: Path, output_dir: Path):

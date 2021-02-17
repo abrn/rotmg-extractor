@@ -42,7 +42,7 @@ class Logger:
         # self.logger.setLevel(logging.DEBUG)
         self.logger.setLevel(logging.INFO)
         self.log(logging.INFO, str(datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S %z %Z")))
-        # self.log(logging.INFO, str(datetime.now().astimezone().tzinfo))
+        # self.log(logging.INFO, current_time_iso8601())
 
     def log(self, level, msg):
         return self.logger.log(level, msg)
