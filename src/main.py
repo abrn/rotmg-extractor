@@ -1,4 +1,3 @@
-import os
 import shutil
 import math
 from datetime import datetime
@@ -21,13 +20,23 @@ def extract_build(prod_name, build_name, app_settings):
 
     work_dir: Path = Constants.WORK_DIR / prod_name.lower() / build_name.lower()
     files_dir: Path = Constants.FILES_DIR / prod_name.lower() / build_name.lower()
-    repo_dir: Path = Constants.REPO_DIR / prod_name.lower() / build_name.lower()
+    repo_dir: Path = Constants.REPO_DIR / build_name.lower()
 
     logger.log(logging.INFO, f"{prod_name} {build_name}")
     IndentFilter.level += 1
     
+    if prod_name.lower() in repo.references:
+        # branch exists, switch to it
+        logger.log(logging.INFO, f"Switching to branch \"{prod_name.lower()}\"")
+        repo.git.checkout(prod_name.lower())
+    else:
+        # branch doesn't exist, create an orphan branch (and switch to it)
+        logger.log(logging.INFO, f"Created branch \"{prod_name.lower()}\"")
+        repo.git.checkout("--orphan", prod_name.lower())
+        delete_dir_contents(Constants.REPO_DIR)
+
     if not app_settings["build_hash"]:
-        logger.log(logging.WARNING, f"{prod_name} does not have a client build available.")
+        logger.log(logging.WARNING, f"{prod_name} does not have a {build_name} build available.")
         IndentFilter.level -= 1
         return
 
@@ -46,36 +55,24 @@ def extract_build(prod_name, build_name, app_settings):
     logger.log(logging.INFO, f"Build URL is {build_url}")
 
     # Game assets are easily downloaded using checksum.json, however the
-    # launcher's assets must be unpacked. This leads to different directories
+    # launcher's assets may need to be unpacked. This leads to different directories
     # when we need to extract assets later
-    build_assets_dir = files_dir
+    build_files_dir = None
 
-    # Download the build's (unity) files
+    # Download the build's files
     if build_name == "Client":
-        download_client_assets(build_url, files_dir)
+        build_files_dir = download_client_assets(build_url, files_dir / "files_dir")
     else:
-        launcher_downloaded = download_asset(build_url, "", ".exe", files_dir, gz=False)
-        if not launcher_downloaded:
-            logger.log(logging.ERROR, f"{prod_name} has no launcher build available or we failed to download it! Aborting.")
-            IndentFilter.level -= 1
-            return
+        build_files_dir = download_launcher_assets(build_url, app_settings["build_id"], files_dir)
 
-        # The only file on the cdn is RotMG-Exalt-Installer.exe (build_id + .exe)
-        launcher_file = app_settings["build_id"] + ".exe"
-        unpack_launcher_assets(files_dir / launcher_file, files_dir)
+    if build_files_dir is None:
+        logger.log(logging.ERROR, f"Failed to download/extract {prod_name} {build_name} assets! Aborting")
+        return
 
-        # these directories are outputted by launcher_unpacker.exe
-        build_assets_dir = files_dir / "launcher" / "programfiles" 
-        if not build_assets_dir.exists():
-            logger.log(logging.ERROR, "Failed to unpack launcher assets, aborting!")
-            IndentFilter.level -= 1
-            return
-
-
-    archive_build_files(build_assets_dir, work_dir)
+    archive_build_files(build_files_dir, work_dir)
 
     extracted_assets_dir = work_dir / "extracted_assets"
-    extract_unity_assets(build_assets_dir, extracted_assets_dir)
+    extract_unity_assets(build_files_dir, extracted_assets_dir)
 
     exalt_version = ""
 
@@ -83,7 +80,7 @@ def extract_build(prod_name, build_name, app_settings):
     if build_name == "Client":
 
         # Extract exalt version (e.g. 1.3.2.1.0)
-        metadata_file = files_dir / "RotMG Exalt_Data" / "il2cpp_data" / "Metadata" / "global-metadata.dat"
+        metadata_file = build_files_dir / "RotMG Exalt_Data" / "il2cpp_data" / "Metadata" / "global-metadata.dat"
         exalt_version = extract_exalt_version(metadata_file, work_dir / "exalt_version.txt")
 
         # Merge useful xml files (objects.xml, groundtypes.xml)

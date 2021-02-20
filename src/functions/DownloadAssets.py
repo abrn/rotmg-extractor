@@ -1,11 +1,12 @@
 
 import os
 import urllib
-from urllib.error import HTTPError
 import shutil
 import ntpath
 import gzip
+import zipfile
 import logging
+from urllib.error import HTTPError
 from pathlib import Path
 
 from classes import Constants
@@ -34,6 +35,7 @@ def download_asset(build_url, url_path, file_name, output_path, gz=True):
     download_url = download_url.replace(" ", "%20")
 
     # file doesn't have a name, only extension
+    # e.g. the launcher's exe file is just {build_id}.exe
     if "." in file_name and Path(file_name).stem == file_name:
         file_name = Path(download_url).name
 
@@ -85,3 +87,40 @@ def download_client_assets(build_url, output_path):
         download_asset(build_url, file_dir, file_name, output_file_dir, gz=True)
 
     IndentFilter.level -= 1
+    return output_path
+
+
+def download_launcher_assets(build_url, build_id, output_path):
+    """ Attemps to download and extract the launcher's installer or build assets """
+
+    # Attempt to download the launcher's installer (.exe)
+    logger.log(logging.INFO, "Attempting to download launcher exe (installer)")
+    IndentFilter.level += 1
+
+    installer_downloaded = download_asset(build_url, "", ".exe", output_path, gz=False)
+    if installer_downloaded:
+        launcher_file = build_id + ".exe"
+        unpack_launcher_assets(output_path / launcher_file, output_path)
+
+        # outputted directories by the unpacker
+        IndentFilter.level -= 1
+        return output_path / "launcher" / "programfiles" 
+    
+    IndentFilter.level -= 1
+
+    # Attempt to download the launcher's assets (.zip)
+    logger.log(logging.INFO, "Attempting to download launcher zip")
+    IndentFilter.level += 1
+
+    assets_downloaded = download_asset(build_url, "", ".zip", output_path, gz=False)
+    if assets_downloaded:
+        assets_file = build_id + ".zip"
+        # extract zip
+        with zipfile.ZipFile(output_path / assets_file, "r") as zip_ref:
+            zip_ref.extractall(output_path / "files_dir")
+        
+        IndentFilter.level -= 1
+        return output_path / "files_dir"
+
+    IndentFilter.level -= 1
+    return None

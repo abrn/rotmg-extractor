@@ -1,4 +1,5 @@
 import os
+import glob
 import shutil
 import json
 import logging
@@ -6,17 +7,20 @@ from pathlib import Path
 from xml.etree import ElementTree
 from classes import logger, IndentFilter
 
-# def delete_dir_contents(dir_path):
-#     for filename in os.listdir(dir_path):
-#         file_path = os.path.join(dir_path, filename)
-#         try:
-#             if os.path.isfile(file_path) or os.path.islink(file_path):
-#                 os.unlink(file_path)
-#             elif os.path.isdir(file_path):
-#                 delete_dir_contents(file_path)
-#                 shutil.rmtree(file_path)
-#         except Exception as e:
-#             logging.error(f"Failed to delete {file_path}. Reason {e}")
+def delete_dir_contents(dir_path, hidden_files=False):
+    for filename in os.listdir(dir_path):
+        if not hidden_files:
+            if filename.startswith("."):
+                continue
+
+        file_path = os.path.join(dir_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            logging.error(f"Failed to delete {file_path}. Reason {e}")
 
 
 def create_dir(path):
