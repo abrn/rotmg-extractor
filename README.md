@@ -1,5 +1,8 @@
 # RotMG Resource Extractor
 
+### Output
+See https://git.extacy.cc/Extacy/rotmg-tracking
+
 ## Directory Structure
 
 ```
