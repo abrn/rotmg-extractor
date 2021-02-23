@@ -24,8 +24,8 @@ def extract_build(prod_name, build_name, app_settings):
 
     logger.log(logging.INFO, f"{prod_name} {build_name}")
     IndentFilter.level += 1
-    
-    if prod_name.lower() in repo.references:
+
+    if prod_name.lower() in repo.remotes.origin.refs:
         # branch exists, switch to it
         logger.log(logging.INFO, f"Switching to branch \"{prod_name.lower()}\"")
         repo.git.checkout(prod_name.lower())
@@ -62,7 +62,7 @@ def extract_build(prod_name, build_name, app_settings):
     # Download the build's files
     if build_name == "Client":
         build_files_dir = download_client_assets(build_url, files_dir / "files_dir")
-    else:
+    elif build_name == "Launcher":
         build_files_dir = download_launcher_assets(build_url, app_settings["build_id"], files_dir)
 
     if build_files_dir is None:
@@ -97,7 +97,7 @@ def extract_build(prod_name, build_name, app_settings):
 
     if build_name == "Client":
         commit_new_build(prod_name, build_name, app_settings, exalt_version)
-    else:
+    elif build_name == "Launcher":
         commit_new_build(prod_name, build_name, app_settings)
 
     logger.log(logging.INFO, f"Done {prod_name} {build_name}")
