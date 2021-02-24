@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 import subprocess
 import re as regex
 import ntpath
@@ -74,11 +75,12 @@ def extract_assets(file_path, output_path):
     env = UnityPy.load(file_path)
     for obj in env.objects:
 
-        obj_types = ["TextAsset", "Sprite", "Texture2D", "AudioClip"]
+        obj_types = ["TextAsset", "Sprite", "Texture2D", "AudioClip", "MonoScript"]
         if obj.type not in obj_types:
             continue
 
         data = obj.read()
+        output_file = ""
 
         obj_name = data.name
         if obj_name == "":
@@ -112,6 +114,22 @@ def extract_assets(file_path, output_path):
             for name, data in data.samples.items():
                 output_file = output_path / str(obj.type) / name
                 write_file(output_file, data, "wb")
+
+        elif obj.type == "MonoScript":
+
+            dirs = data.namespace.split(".")
+            dirs = [regex.sub('[*?:"<>|]', "", dir) for dir in dirs] # remove invalid file characters
+            dir = "/".join(dirs)
+
+            output_file = output_path / str(obj.type) / dir / f"{obj_name}.json"
+
+            keys = ["assembly_name", "namespace", "class_name", "name"]
+            base = { key: data.__dict__[key] for key in keys}
+
+            json_pretty = json.dumps(base, indent=4)
+
+            write_file(output_file, json_pretty, "w")
+
 
         if output_file != "":
 
