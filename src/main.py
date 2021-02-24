@@ -79,16 +79,6 @@ def download_archive_build(prod_name, build_name, app_settings, files_dir, work_
             build_files_dir = download_client_assets(build_url, files_dir / "files_dir")
         elif build_name == "Launcher":
             build_files_dir = download_launcher_assets(build_url, app_settings["build_id"], files_dir)
-    else:
-        # Build files may be downloaded, test and set dirs
-        paths: list[Path] = [
-            files_dir / "files_dir", # normal
-            files_dir / "launcher" / "programfiles" # unpacked launcher installer
-        ]
-       
-        for path in paths:
-            if path.exists():
-                build_files_dir = path
 
     if build_files_dir is None:
         logger.log(logging.ERROR, f"Failed to download/extract {prod_name} {build_name} assets! Aborting")
@@ -125,12 +115,12 @@ def output_build(prod_name, build_name, app_settings, work_dir, repo_dir, exalt_
     timestamp = math.floor(datetime.now().timestamp())
     write_file(work_dir / "timestamp.txt", str(timestamp))
 
-    # Commit the changes to the repo
+    # Move files to repo
     logger.log(logging.INFO, f"Deleting {repo_dir}")
     shutil.rmtree(repo_dir, ignore_errors=True)
     sleep(2)
 
-    logger.log(logging.INFO, f"Deleting copying work_dir to repo_dir")
+    logger.log(logging.INFO, f"Copying work_dir to repo_dir")
     shutil.copytree(work_dir, repo_dir)
     sleep(2)
 
@@ -152,10 +142,13 @@ def main():
     # Setup logger
     logger.setup()
 
+    # build_commits = get_build_commits()
+    # append_commits(build_commits, "Extracted MonoScript")
+
     prod_names = ["Production", "Testing"]
     for prod_name in prod_names:
         app_settings = AppSettings(Constants.URLS["Production"])
-        # full_build_extract(prod_name, "Client", app_settings.client)
+        full_build_extract(prod_name, "Client", app_settings.client)
         full_build_extract(prod_name, "Launcher", app_settings.launcher)
 
     logger.log(logging.INFO, "Done!")
