@@ -3,9 +3,10 @@ import pathlib
 #############
 # URL Hosts #
 #############
-PROD_URL = "https://www.realmofthemadgod.com"
-TESTING_URL = "https://test.realmofthemadgod.com"
-
+URLS = {
+    "Production": "https://www.realmofthemadgod.com",
+    "Testing": "https://test.realmofthemadgod.com"
+}
 
 #############
 # URL Paths #
