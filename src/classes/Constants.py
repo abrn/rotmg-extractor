@@ -44,5 +44,11 @@ FILES_DIR = TEMP_DIR / "files"
 # ./output/temp/work - temporary location to generate output before being copied to web/repo
 WORK_DIR = TEMP_DIR / "work"
 
-LAUNCHER_UNPACKER_WINDOWS = SRC_DIR / "launcher_unpacker" / "unpacker_win.exe"
-LAUNCHER_UNPACKER_LINUX = SRC_DIR / "launcher_unpacker" / "unpacker_linux"
+############
+# Binaries #
+############
+
+BINARIES_DIR = SRC_DIR / "binaries"
+
+LAUNCHER_UNPACKER_WINDOWS = BINARIES_DIR / "launcher_unpacker" / "windows" / "unpacker_win.exe"
+LAUNCHER_UNPACKER_LINUX = BINARIES_DIR / "launcher_unpacker" / "linux" / "unpacker_linux.exe"
