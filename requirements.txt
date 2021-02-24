@@ -9,6 +9,6 @@ Pillow==8.1.0
 requests==2.25.1
 smmap==3.0.5
 texture2ddecoder==1.0.2
--e git+https://github.com/K0lb3/UnityPy#egg=UnityPy
+-e git+https://github.com/Extacy/UnityPy#egg=UnityPy
 urllib3==1.26.3
 xmltodict==0.12.0
