@@ -116,7 +116,7 @@ def append_commits(build_commits: dict, message=""):
         # Determine what prod and what build this commit is for
         commit_title = commit.message.split("\n")[0]
         commit_message = commit.message.split("\n")[:-1]
-        result = regex.findall(r"(\w+) (\w+) |", commit_title)
+        result = regex.findall(r"^(?:Append: )?(\w+) (\w+) \|", commit_title)
         prod_name = result[0][0]
         build_name = result[0][1]
 

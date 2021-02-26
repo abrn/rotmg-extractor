@@ -38,8 +38,12 @@ def read_file(file_path):
         return file.read()
 
 
-def search_dir(dir: Path, search):
+def find_path(dir: Path, search):
+    """ Returns the path to a file or directory by search. Uses glob search. """
     result = list(dir.glob(search))
+    if result == []:
+        return None
+
     return next(iter(result))
 
 

@@ -31,7 +31,7 @@ def extract_unity_assets(input_dir, output_path):
     IndentFilter.level += 1
 
     # Get the _Data directory (where the unity files are located)
-    data_dir = search_dir(input_dir, "*_Data")
+    data_dir = find_path(input_dir, "*_Data")
 
     # Iterate files
     for file_name in os.listdir(data_dir):
@@ -152,28 +152,6 @@ def extract_assets(file_path, output_path):
     IndentFilter.level -= 1
 
 
-def unpack_launcher_assets(launcher_path, output_path):
-
-    unpacker_file = None
-    if os.name == "nt":
-        unpacker_file = Constants.LAUNCHER_UNPACKER_WINDOWS
-    elif os.name == "posix":
-        unpacker_file = Constants.LAUNCHER_UNPACKER_LINUX
-    else:
-        return
-
-    logger.log(logging.INFO, "Unpacking launcher assets...")
-    IndentFilter.level += 1
-
-    subprocess.run(
-        [unpacker_file, launcher_path, output_path],
-        stdout=subprocess.DEVNULL,
-    )
-
-    logger.log(logging.INFO, "Done!")
-    IndentFilter.level -= 1
-
-
 def extract_exalt_version(metadata_file: Path, output_file: Path):
     """ Attempts to find the current version string (e.g. `1.3.2.0.0`) located in `global-metadata.dat` """
 
@@ -259,4 +237,60 @@ def merge_xml_files(manifest_file: Path, input_dir: Path, output_dir: Path):
 
         # TODO: convert to json (see nrelay code)
 
+    IndentFilter.level -= 1
+
+
+def unpack_launcher_assets(launcher_path, output_path):
+
+    unpacker_file = None
+    if os.name == "nt":
+        unpacker_file = Constants.LAUNCHER_UNPACKER_WINDOWS
+    elif os.name == "posix":
+        unpacker_file = Constants.LAUNCHER_UNPACKER_LINUX
+    else:
+        return
+
+    logger.log(logging.INFO, "Unpacking launcher assets...")
+    IndentFilter.level += 1
+
+    process = subprocess.Popen(
+        [unpacker_file, launcher_path, output_path],
+        stdin=subprocess.PIPE, # bypass "Press any key to exit..."
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT
+    )
+
+    logger.pipe(process.stdout)
+    process.wait()
+
+    logger.log(logging.INFO, "Done!")
+    IndentFilter.level -= 1
+
+
+def dump_il2cpp(gameassembly: Path, metadata: Path, output_dir: Path):
+
+    dumper_file = None
+    if os.name == "nt":
+        dumper_file = Constants.IL2CPP_DUMPER_WINDOWS
+    elif os.name == "posix":
+        dumper_file = Constants.IL2CPP_DUMPER_LINUX
+    else:
+        return
+
+    logger.log(logging.INFO, "Dumping il2cpp...")
+    IndentFilter.level += 1
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    process = subprocess.Popen(
+        [dumper_file, gameassembly, metadata, output_dir],
+        stdin=subprocess.PIPE, # bypass "Press any key to exit..."
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT
+    )
+
+    logger.pipe(process.stdout)
+    process.wait()
+
+    logger.log(logging.INFO, "Done!")
     IndentFilter.level -= 1

@@ -53,3 +53,6 @@ BINARIES_DIR = SRC_DIR / "binaries"
 
 LAUNCHER_UNPACKER_WINDOWS = BINARIES_DIR / "launcher_unpacker" / "windows" / "unpacker_win.exe"
 LAUNCHER_UNPACKER_LINUX = BINARIES_DIR / "launcher_unpacker" / "linux" / "unpacker_linux.exe"
+
+IL2CPP_DUMPER_WINDOWS = BINARIES_DIR / "il2cppdumper" / "windows" / "Il2CppDumper.exe"
+IL2CPP_DUMPER_LINUX = BINARIES_DIR / "il2cppdumper" / "linux" / "Il2CppDumper"

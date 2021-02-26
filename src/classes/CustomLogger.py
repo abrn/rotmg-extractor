@@ -1,3 +1,4 @@
+import io
 import logging
 import sys
 from datetime import datetime
@@ -46,6 +47,11 @@ class Logger:
 
     def log(self, level, msg):
         return self.logger.log(level, msg)
+
+    def pipe(self, pipe: io.BufferedReader):
+        for line in iter(pipe.readline, b""):
+            line = line.decode().replace("\r\n", "")
+            self.log(logging.INFO, line)
 
 
 class IndentFilter(logging.Filter):
