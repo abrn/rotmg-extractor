@@ -3,7 +3,7 @@ import pathlib
 #############
 # URL Hosts #
 #############
-URLS = {
+ROTMG_URLS = {
     "Production": "https://www.realmofthemadgod.com",
     "Testing": "https://test.realmofthemadgod.com"
 }
