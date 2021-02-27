@@ -101,6 +101,8 @@ def extract_build(build_name, build_files_dir, work_dir):
         metadata_file = build_files_dir / "RotMG Exalt_Data" / "il2cpp_data" / "Metadata" / "global-metadata.dat"
         exalt_version = extract_exalt_version(metadata_file, work_dir / "exalt_version.txt")
 
+        merge_xml_files(extracted_assets_dir / "TextAsset" / "manifest.json", extracted_assets_dir, work_dir)
+
     # Dump GameAssembly using Il2CppDumper
     data_dir = find_path(build_files_dir, "*_Data")
     metadata = data_dir / "il2cpp_data" / "Metadata" / "global-metadata.dat"
