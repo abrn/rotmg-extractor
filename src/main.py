@@ -153,7 +153,7 @@ def main():
 
     prod_names = ["Production", "Testing"]
     for prod_name in prod_names:
-        app_settings = AppSettings(Constants.ROTMG_URLS["Production"])
+        app_settings = AppSettings(Constants.ROTMG_URLS[prod_name])
         full_build_extract(prod_name, "Client", app_settings.client)
         full_build_extract(prod_name, "Launcher", app_settings.launcher)
 
