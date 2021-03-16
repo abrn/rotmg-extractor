@@ -159,7 +159,10 @@ def main():
 
     logger.log(logging.INFO, "Done!")
 
-    # TODO: loop main here
+    # loop the main function to continuously check for new builds 
+    logger.log(logging.INFO, "Looping in 10 minutes...\n\n")
+    sleep(10 * 60) # 10 minutes
+    main()
 
 
 if __name__ == "__main__":

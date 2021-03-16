@@ -11,8 +11,13 @@ class Logger:
 
     def __init__(self):
         self.logger = logging.getLogger()
+        self.initialized = False
 
     def setup(self):
+
+        if self.initialized:
+            return
+
         self.logger.addFilter(IndentFilter())
         self.logger.addFilter(LevelFilter())
 
@@ -44,6 +49,8 @@ class Logger:
         self.logger.setLevel(logging.INFO)
         self.log(logging.INFO, str(datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S %z %Z")))
         # self.log(logging.INFO, current_time_iso8601())
+
+        self.initialized = True
 
     def log(self, level, msg):
         return self.logger.log(level, msg)
