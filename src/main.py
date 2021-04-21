@@ -62,6 +62,7 @@ def pre_build_setup(prod_name, build_name, app_settings, work_dir, publish_dir):
 
     logger.log(logging.INFO, f"New build! Build hash: {app_settings['build_hash']}")
     write_file(work_dir / "build_hash.txt", app_settings["build_hash"], overwrite=True)
+    write_file(work_dir / "build_version.txt", app_settings["build_version"], overwrite=True)
     return True
 
 
