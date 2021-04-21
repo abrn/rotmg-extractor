@@ -93,7 +93,7 @@ def extract_build(build_name, build_files_dir, work_dir):
 
         merge_xml_files(extracted_assets_dir / "TextAsset" / "manifest.json", extracted_assets_dir, work_dir)
 
-    # Dump GameAssembly using Il2CppDumper
+    # Dump il2cpp using Il2CppInspector
     data_dir = find_path(build_files_dir, "*_Data")
     metadata = data_dir / "il2cpp_data" / "Metadata" / "global-metadata.dat"
     gameassembly = build_files_dir / "GameAssembly.dll"

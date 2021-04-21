@@ -267,7 +267,7 @@ def unpack_launcher_assets(launcher_path, output_path):
     IndentFilter.level -= 1
 
 
-def dump_il2cpp(gameassembly: Path, metadata: Path, output_dir: Path):
+def dump_il2cpp(gameassembly: Path, metadata_file: Path, output_dir: Path):
 
     dumper_file = None
     if os.name == "nt":
@@ -283,8 +283,16 @@ def dump_il2cpp(gameassembly: Path, metadata: Path, output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     process = subprocess.Popen(
-        [dumper_file, gameassembly, metadata, output_dir],
-        stdin=subprocess.PIPE, # bypass "Press any key to exit..."
+        [
+            dumper_file, 
+            "--bin", gameassembly, 
+            "--metadata", metadata_file,
+            "--layout", "namespace",
+            "--select-outputs",
+            "--py-out",   output_dir / "il2cpp.py",
+            "--json-out", output_dir / "metadata.json",
+            "--cs-out",   output_dir / "types",
+        ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT
     )
