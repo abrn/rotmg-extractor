@@ -10,50 +10,40 @@ from functions import *
 
 
 def full_build_extract(prod_name, build_name, app_settings):
-    work_dir: Path = Constants.WORK_DIR / prod_name.lower() / build_name.lower()
-    files_dir: Path = Constants.FILES_DIR / prod_name.lower() / build_name.lower()
-    repo_dir: Path = Constants.REPO_DIR / build_name.lower()
+    files_dir: Path     = Constants.FILES_DIR   / prod_name.lower() / build_name.lower()    # ./output/temp/files/production/client
+    work_dir: Path      = Constants.WORK_DIR    / prod_name.lower() / build_name.lower()    # ./output/temp/work/production/client
+    publish_dir: Path   = Constants.PUBLISH_DIR / prod_name.lower() / build_name.lower()    # ./output/publish/production/client
 
     logger.log(logging.INFO, f"Starting {prod_name} {build_name}")
     IndentFilter.level += 1
 
-    pre_setup = pre_build_setup(prod_name, build_name, app_settings, work_dir, repo_dir)
+    pre_setup = pre_build_setup(prod_name, build_name, app_settings, work_dir, publish_dir)
     if not pre_setup:
         return False
 
     build_files_dir = download_archive_build(prod_name, build_name, app_settings, files_dir, work_dir)
     if not build_files_dir:
         return False
-    
+
     extracted = extract_build(build_name, build_files_dir, work_dir)
     if not extracted:
         return False
 
-    output_build(prod_name, build_name, app_settings, work_dir, repo_dir, extracted[0])
+    output_build(prod_name, build_name, app_settings, work_dir, publish_dir, extracted[0])
 
     logger.log(logging.INFO, f"Done {prod_name} {build_name}")
     IndentFilter.level -= 1
 
 
-def pre_build_setup(prod_name, build_name, app_settings, work_dir, repo_dir):
+def pre_build_setup(prod_name, build_name, app_settings, work_dir, publish_dir):
 
     if not app_settings["build_hash"]:
         logger.log(logging.WARNING, f"{prod_name} does not have a {build_name} build available, aborting.")
         IndentFilter.level -= 1
         return False
 
-    if prod_name.lower() in repo.remotes.origin.refs:
-        # branch exists, switch to it
-        logger.log(logging.INFO, f"Switching to branch \"{prod_name.lower()}\"")
-        repo.git.checkout(prod_name.lower())
-    else:
-        # branch doesn't exist, create an orphan branch (and switch to it)
-        logger.log(logging.INFO, f"Created branch \"{prod_name.lower()}\"")
-        repo.git.checkout("--orphan", prod_name.lower())
-        delete_dir_contents(Constants.REPO_DIR)
-
     # Compare build hashes
-    build_hash_file = repo_dir / "build_hash.txt"
+    build_hash_file = publish_dir / "current" / "build_hash.txt"
     if build_hash_file.is_file():
         current_build_hash = read_file(build_hash_file)
         if current_build_hash == app_settings["build_hash"]:
@@ -121,20 +111,27 @@ def output_build(prod_name, build_name, app_settings, work_dir, repo_dir, exalt_
     timestamp = math.floor(datetime.now().timestamp())
     write_file(work_dir / "timestamp.txt", str(timestamp))
 
-    # Move files to repo
-    logger.log(logging.INFO, f"Deleting {repo_dir}")
-    shutil.rmtree(repo_dir, ignore_errors=True)
+    logger.log(logging.INFO, f"Copying output files...")
+
+    publish_dir_buildhash = publish_dir / app_settings['build_hash']
+    if build_name == "Client" and exalt_version != "":
+        publish_dir_buildhash = publish_dir / f"{exalt_version} - {app_settings['build_hash']}"
+
+    logger.log(logging.INFO, f"Copying files to {publish_dir_buildhash}")
+    shutil.copytree(work_dir, publish_dir_buildhash)
+
+    publish_dir_current = publish_dir / "current"
+    if publish_dir_current.exists():
+        logger.log(logging.INFO, f"Deleting {publish_dir_current}")
+        shutil.rmtree(publish_dir_current)
+
+    logger.log(logging.INFO, f"Copying files to {publish_dir_current}")
+    shutil.copytree(work_dir, publish_dir_current)
+
     sleep(2)
 
-    logger.log(logging.INFO, f"Copying work_dir to repo_dir")
-    shutil.copytree(work_dir, repo_dir)
-    sleep(2)
-
-    if build_name == "Client":
-        commit_new_build(prod_name, build_name, app_settings, exalt_version)
-    elif build_name == "Launcher":
-        commit_new_build(prod_name, build_name, app_settings)
-
+    # TODO: Maybe clear the current logger?
+    logger.log(logging.INFO, f"Done!")
     IndentFilter.level -= 1
     return True
 
@@ -147,9 +144,6 @@ def main():
 
     # Setup logger
     logger.setup()
-
-    # build_commits = get_build_commits()
-    # append_commits(build_commits, "Extracted MonoScript")
 
     prod_names = ["Production", "Testing"]
     for prod_name in prod_names:
