@@ -14,6 +14,10 @@ def full_build_extract(prod_name, build_name, app_settings):
     work_dir: Path      = Constants.WORK_DIR    / prod_name.lower() / build_name.lower()    # ./output/temp/work/production/client
     publish_dir: Path   = Constants.PUBLISH_DIR / prod_name.lower() / build_name.lower()    # ./output/publish/production/client
 
+    log_file = work_dir / "log.txt"
+    logger.setFileLog(log_file)
+    logger.printTime()
+
     logger.log(logging.INFO, f"Starting {prod_name} {build_name}")
     IndentFilter.level += 1
 
@@ -153,7 +157,6 @@ def output_build(prod_name, build_name, app_settings, work_dir, publish_dir, exa
 
     sleep(2)
 
-    # TODO: Maybe clear the current logger?
     logger.log(logging.INFO, f"Done!")
     IndentFilter.level -= 1
     return True
@@ -176,12 +179,11 @@ def main():
 
     logger.log(logging.INFO, "Done!")
 
-    # TOOD: save log
-
-    # # loop the main function to continuously check for new builds 
-    # logger.log(logging.INFO, "Looping in 10 minutes...\n\n")
-    # sleep(10 * 60) # 10 minutes
-    # main()
+    # loop the main function to continuously check for new builds 
+    loop_time = 10 # minutes
+    logger.log(logging.INFO, f"Looping in {loop_time} minutes...\n\n")
+    sleep(loop_time * 60)
+    main()
 
 
 if __name__ == "__main__":
