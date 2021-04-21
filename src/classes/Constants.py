@@ -45,8 +45,8 @@ WORK_DIR = TEMP_DIR / "work"
 
 BINARIES_DIR = SRC_DIR / "binaries"
 
-LAUNCHER_UNPACKER_WINDOWS = BINARIES_DIR / "launcher_unpacker" / "windows" / "unpacker_win.exe"
-LAUNCHER_UNPACKER_LINUX = BINARIES_DIR / "launcher_unpacker" / "linux" / "unpacker_linux.exe"
+LAUNCHER_UNPACKER_WINDOWS = BINARIES_DIR / "launcher_unpacker" / "unpacker-win.exe"
+LAUNCHER_UNPACKER_LINUX = BINARIES_DIR / "launcher_unpacker" / "unpacker-linux"
 
 IL2CPP_DUMPER_WINDOWS = BINARIES_DIR / "Il2CppInspector" / "Il2CppInspector-cli-win.exe"
 IL2CPP_DUMPER_LINUX = BINARIES_DIR / "Il2CppInspector" / "Il2CppInspector-linux"
