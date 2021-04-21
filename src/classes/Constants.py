@@ -11,7 +11,7 @@ ROTMG_URLS = {
 #############
 # URL Paths #
 #############
-APP_INIT_PATH = f"/app/init?platform=standalonewindows64&key=9KnJFxtTvLu2frXv"
+APP_INIT_PATH = "/app/init?platform=standalonewindows64&key=9KnJFxtTvLu2frXv"
 
 
 ##############

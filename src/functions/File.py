@@ -8,6 +8,7 @@ from xml.etree import ElementTree
 from classes import logger, IndentFilter
 
 def delete_dir_contents(dir_path, hidden_files=False):
+    """ use `shutil.rmtree` instead """
     for filename in os.listdir(dir_path):
         if not hidden_files:
             if filename.startswith("."):

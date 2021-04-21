@@ -36,6 +36,11 @@ def full_build_extract(prod_name, build_name, app_settings):
 
 
 def pre_build_setup(prod_name, build_name, app_settings, work_dir, publish_dir):
+    """
+    * Assert that their is a build to download
+    * Compare build hashes (test if there is a new build out)
+    * Write some app_settings info (build_hash, etc)
+    """
 
     if not app_settings["build_hash"]:
         logger.log(logging.WARNING, f"{prod_name} does not have a {build_name} build available, aborting.")
@@ -51,11 +56,17 @@ def pre_build_setup(prod_name, build_name, app_settings, work_dir, publish_dir):
             IndentFilter.level -= 1
             return False
 
+    logger.log(logging.INFO, f"New build! Build hash: {app_settings['build_hash']}")
     write_file(work_dir / "build_hash.txt", app_settings["build_hash"], overwrite=True)
     return True
 
 
 def download_archive_build(prod_name, build_name, app_settings, files_dir, work_dir, download=True, archive=True):
+    """
+    * Downloads all files for the current build.
+    * Launcher assets are automatically unpacked.
+    * Archives all the build files to a .zip in their original state.
+    """
 
     build_url = app_settings["build_cdn"] + app_settings["build_hash"] + "/" + app_settings["build_id"]
     logger.log(logging.INFO, f"Build URL is {build_url}")
@@ -66,7 +77,7 @@ def download_archive_build(prod_name, build_name, app_settings, files_dir, work_
 
     if download:
         if build_name == "Client":
-            build_files_dir = download_client_assets(build_url, files_dir / "files_dir")
+            build_files_dir = download_client_assets(build_url, files_dir)
         elif build_name == "Launcher":
             build_files_dir = download_launcher_assets(build_url, app_settings["build_id"], files_dir)
 
@@ -81,6 +92,13 @@ def download_archive_build(prod_name, build_name, app_settings, files_dir, work_
 
 
 def extract_build(build_name, build_files_dir, work_dir):
+    """
+    * Extracts all Unity assets using UnityPy.
+    * Attempts to extract the current Exalt Version from il2cpp metadata.
+    * Merges xml files (objects/tiles), for client builds.
+    * Dumps Il2Cpp using  Il2CppInspector.
+    Returns the Exalt Version (for client) or "" for launcher.
+    """
 
     extracted_assets_dir = work_dir / "extracted_assets"
     extract_unity_assets(build_files_dir, extracted_assets_dir)
@@ -103,7 +121,12 @@ def extract_build(build_name, build_files_dir, work_dir):
     return (exalt_version,)
 
 
-def output_build(prod_name, build_name, app_settings, work_dir, repo_dir, exalt_version=""):
+def output_build(prod_name, build_name, app_settings, work_dir, publish_dir, exalt_version=""):
+    """
+    Performs the final steps for outputting a build after archival/extraction.
+    * Writes the current timestamp.txt
+    * Copies the output files to the published dir
+    """
 
     logger.log(logging.INFO, "Outputting build...")
     IndentFilter.level += 1
@@ -153,10 +176,12 @@ def main():
 
     logger.log(logging.INFO, "Done!")
 
-    # loop the main function to continuously check for new builds 
-    logger.log(logging.INFO, "Looping in 10 minutes...\n\n")
-    sleep(10 * 60) # 10 minutes
-    main()
+    # TOOD: save log
+
+    # # loop the main function to continuously check for new builds 
+    # logger.log(logging.INFO, "Looping in 10 minutes...\n\n")
+    # sleep(10 * 60) # 10 minutes
+    # main()
 
 
 if __name__ == "__main__":

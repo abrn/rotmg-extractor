@@ -63,7 +63,7 @@ def download_asset(build_url, url_path, file_name, output_path, gz=True):
 
 
 def download_client_assets(build_url, output_path):
-    """ Downloads all the client assets, automatically extracting gzipped files """
+    """ Downloads all the client assets, and automatically extracts gzipped files """
 
     logger.log(logging.INFO, "Downloading client build assets...")
     IndentFilter.level += 1
@@ -108,7 +108,7 @@ def download_launcher_assets(build_url, build_id, output_path):
     
     IndentFilter.level -= 1
 
-    # Attempt to download the launcher's assets (.zip)
+    # Attempt to download the launcher's assets (.zip) - used for testing launcher
     logger.log(logging.INFO, "Attempting to download launcher zip")
     IndentFilter.level += 1
 
