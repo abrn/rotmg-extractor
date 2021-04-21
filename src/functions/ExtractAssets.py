@@ -98,7 +98,7 @@ def extract_assets(file_path, output_path):
                 ext = "json"
 
             output_file = output_path / str(obj.type) / f"{obj_name}.{ext}"
-            write_file(output_file, data.script, "wb")
+            write_file(output_file, data.m_Script, "wb")
 
         elif obj.type == "Sprite" or obj.type == "Texture2D":
             # print pathid or something like that here
@@ -117,13 +117,13 @@ def extract_assets(file_path, output_path):
 
         elif obj.type == "MonoScript":
 
-            dirs = data.namespace.split(".")
+            dirs = data.m_Namespace.split(".")
             dirs = [regex.sub('[*?:"<>|]', "", dir) for dir in dirs] # remove invalid file characters
             dir = "/".join(dirs)
 
             output_file = output_path / str(obj.type) / dir / f"{obj_name}.json"
 
-            keys = ["assembly_name", "namespace", "class_name", "name"]
+            keys = ["m_AssemblyName", "m_Namespace", "m_ClassName", "name"]
             base = { key: data.__dict__[key] for key in keys}
 
             json_pretty = json.dumps(base, indent=4)
