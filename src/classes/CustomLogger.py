@@ -58,7 +58,7 @@ class Logger:
         
     def pipe(self, pipe: io.BufferedReader):
         for line in iter(pipe.readline, b""):
-            line = line.decode().replace("\r\n", "")
+            line = line.decode().replace("\r", "").replace("\n", "")
             self.log(logging.INFO, line)
 
 
