@@ -287,7 +287,7 @@ def dump_il2cpp(gameassembly: Path, metadata_file: Path, output_dir: Path):
             dumper_file, 
             "--bin", gameassembly, 
             "--metadata", metadata_file,
-            "--layout", "namespace",
+            "--layout", "class",
             "--select-outputs",
             "--py-out",   output_dir / "il2cpp.py",
             "--json-out", output_dir / "metadata.json",
