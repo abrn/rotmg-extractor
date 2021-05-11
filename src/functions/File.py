@@ -95,19 +95,26 @@ def merge_xml(files):
     return ElementTree.tostring(xml_data).decode("utf-8")
 
 
-def archive_build_files(input_path: Path, output_path: Path, file_name="build_files", format="zip"):
-    logger.log(logging.INFO, "Archiving build files...")
+def archive_build_files(input_path: Path, output_path: Path, archive: bool, file_name="build_files", format="zip"):
 
-    # gztar includes the entire directory structure (C:\Users\...)
-    # tar includes "." and @PaxHeaders
-    # zip is the only one that actually works
-    shutil.make_archive(
-        base_name=output_path / file_name,
-        format=format,
-        root_dir=input_path
-    )
+    if archive:
+        logger.log(logging.INFO, "Archiving build files...")
+        IndentFilter.level += 1
 
-    # rel_output_path = input_path.relative_to(Constants.SRC_DIR)
-    IndentFilter.level += 1
-    logger.log(logging.INFO, f"Build files archived ({output_path / file_name}.{format})")
-    IndentFilter.level -= 1
+        shutil.make_archive(
+            base_name=output_path / file_name,
+            format=format,
+            root_dir=input_path
+        )
+
+        logger.log(logging.INFO, f"Build files archived ({output_path / file_name}.{format})")
+        IndentFilter.level -= 1
+    else:
+        logger.log(logging.INFO, "Copying build files...")
+        IndentFilter.level += 1
+
+        shutil.copytree(input_path, output_path / file_name)
+
+        logger.log(logging.INFO, f"Build files copied ({output_path / file_name})")
+        IndentFilter.level -= 1
+    

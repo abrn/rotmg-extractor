@@ -25,7 +25,7 @@ def full_build_extract(prod_name, build_name, app_settings):
     if not pre_setup:
         return False
 
-    build_files_dir = download_archive_build(prod_name, build_name, app_settings, files_dir, work_dir)
+    build_files_dir = download_archive_build(prod_name, build_name, app_settings, files_dir, work_dir, archive=False)
     if not build_files_dir:
         return False
 
@@ -90,9 +90,7 @@ def download_archive_build(prod_name, build_name, app_settings, files_dir, work_
         logger.log(logging.ERROR, f"Failed to download/extract {prod_name} {build_name} assets! Aborting")
         return False
     
-    if archive:
-        archive_build_files(build_files_dir, work_dir)
-
+    archive_build_files(build_files_dir, work_dir, archive)
     return build_files_dir
 
 
