@@ -170,7 +170,13 @@ def main():
     # Setup logger
     logger.setup()
 
-    prod_names = ["Production", "Testing"]
+    prod_names = [
+        "Production",
+        "Testing",
+        "Testing2",
+        "Testing3",
+        "Testing4"
+    ]
     for prod_name in prod_names:
         app_settings = AppSettings(Constants.ROTMG_URLS[prod_name])
         full_build_extract(prod_name, "Client", app_settings.client)

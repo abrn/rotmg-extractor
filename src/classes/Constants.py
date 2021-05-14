@@ -5,7 +5,11 @@ import pathlib
 #############
 ROTMG_URLS = {
     "Production": "https://www.realmofthemadgod.com",
-    "Testing": "https://test.realmofthemadgod.com"
+    "Testing": "https://test.realmofthemadgod.com",
+    "Testing2": "https://test2.realmofthemadgod.com",
+    "Testing3": "https://test3.realmofthemadgod.com",
+    "Testing4": "https://test4.realmofthemadgod.com"
+    # "Testing5": "https://test5.realmofthemadgod.com"
 }
 
 #############
