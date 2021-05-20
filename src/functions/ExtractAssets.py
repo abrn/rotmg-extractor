@@ -292,6 +292,7 @@ def dump_il2cpp(gameassembly: Path, metadata_file: Path, output_dir: Path):
             "--py-out",   output_dir / "il2cpp.py",
             "--json-out", output_dir / "metadata.json",
             "--cs-out",   output_dir / "types",
+            "--cpp-out",  output_dir / "cpp",
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT
