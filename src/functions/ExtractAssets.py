@@ -156,16 +156,14 @@ def extract_exalt_version(metadata_file: Path, output_file: Path):
     """ Attempts to find the current version string (e.g. `1.3.2.0.0`) located in `global-metadata.dat` """
 
     # TODO: Decode/decrypt build version from appsettings
-    # or we could compare all 1.2.3.4.5 strings in the metadata and use the one closest to the
-    # current one (in repo_dir)
 
     # A simple regex to capture "1.3.2.0.0" isn't as simple as there are many
-    # strings that match. It just happens that the version string appears in
-    # global-metadata.dat with "127.0.0.1" before it.
-
-    # There are a number (8?) ASCII control characters after 127.0.0.1:
-    # 02  08 00  00  09 00  00  00
-    # STX BS NUL NUL HT NUL NUL NUL
+    # strings that match. However, the current exalt version is stored in the
+    # client as a const string (so it appears in the metadata). It's located
+    # in the static class KFFELHLKACG.AFOGMBOANMH.
+    # Because it is stored in the metadata, we can use regex to match the
+    # string using the previous const strings in the class to get the correct
+    # one. (Which is 127.0.0.1 - see the class KFFELHLKACG)
 
     # For testing:
     # cat global-metadata.dat | grep --text -Po "127\.0\.0\.1[\x00-\x20]*(\d(?:\.\d){4})"
