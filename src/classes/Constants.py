@@ -4,12 +4,12 @@ import pathlib
 # URL Hosts #
 #############
 ROTMG_URLS = {
-    "Production": "https://www.realmofthemadgod.com",
-    "Testing": "https://test.realmofthemadgod.com",
-    "Testing2": "https://test2.realmofthemadgod.com",
-    "Testing3": "https://test3.realmofthemadgod.com",
-    "Testing4": "https://test4.realmofthemadgod.com"
-    # "Testing5": "https://test5.realmofthemadgod.com"
+    "Production": "https://realmofthemadgod.appspot.com",
+    "Testing":    "https://realmtesting.appspot.com",
+    "Testing2":   "https://realmtesting2.appspot.com",
+    "Testing3":   "https://realmtesting3.appspot.com",
+    "Testing4":   "https://realmtesting4.appspot.com",
+    "Testing5":   "https://realmtesting5.appspot.com"
 }
 
 #############
