@@ -5,11 +5,11 @@ import pathlib
 #############
 ROTMG_URLS = {
     "Production": "https://realmofthemadgod.appspot.com",
-    "Testing":    "https://realmtesting.appspot.com",
+    "Testing":    "https://rotmgtesting.appspot.com",
     "Testing2":   "https://realmtesting2.appspot.com",
-    "Testing3":   "https://realmtesting3.appspot.com",
-    "Testing4":   "https://realmtesting4.appspot.com",
-    "Testing5":   "https://realmtesting5.appspot.com"
+    "Testing3":   "https://rotmgtesting3.appspot.com",
+    "Testing4":   "https://rotmgtesting4.appspot.com",
+    "Testing5":   "https://rotmgtesting5.appspot.com"
 }
 
 #############
