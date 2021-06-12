@@ -66,9 +66,9 @@ def rename_duplicate_file(file_path, sep="-"):
     return file_path
 
 
-def write_file(file_path: Path, data, mode="w", overwrite=False, rename_duplicate=True):
+def write_file(file_path: Path, data: str, mode="w", overwrite=False, rename_duplicate=True):
 
-    Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Save the file as Filename-1.txt if there is a duplicate
     if not overwrite:
@@ -79,8 +79,12 @@ def write_file(file_path: Path, data, mode="w", overwrite=False, rename_duplicat
                 logger.log(logging.ERROR, f"Error saving {file_path} ! (overwrite={overwrite}, rename_duplicate={rename_duplicate})")
                 return
 
-    with open(file_path, mode) as file:
-        file.write(data)
+    if "b" not in mode:
+        with open(file_path, mode, encoding="utf8", newline="") as file:
+            file.write(data)
+    else:
+        with open(file_path, mode) as file:
+            file.write(data)
 
 
 def merge_xml(files):
