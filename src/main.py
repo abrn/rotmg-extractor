@@ -10,9 +10,9 @@ from functions import *
 
 
 def full_build_extract(prod_name, build_name, app_settings):
-    files_dir: Path     = Constants.FILES_DIR   / prod_name.lower() / build_name.lower()    # ./output/temp/files/production/client
-    work_dir: Path      = Constants.WORK_DIR    / prod_name.lower() / build_name.lower()    # ./output/temp/work/production/client
-    publish_dir: Path   = Constants.PUBLISH_DIR / prod_name.lower() / build_name.lower()    # ./output/publish/production/client
+    files_dir: Path     = Constants.FILES_DIR   / "builds" / prod_name.lower() / build_name.lower()     # ./output/temp/files/builds/production/client
+    work_dir: Path      = Constants.WORK_DIR    / "builds" / prod_name.lower() / build_name.lower()     # ./output/temp/work/builds/production/client
+    publish_dir: Path   = Constants.PUBLISH_DIR / "builds" / prod_name.lower() / build_name.lower()     # ./output/publish/builds/production/client
 
     log_file = work_dir / "log.txt"
     logger.setFileLog(log_file)
