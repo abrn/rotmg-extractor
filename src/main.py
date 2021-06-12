@@ -170,12 +170,15 @@ def main():
     # Setup logger
     logger.setup()
     
-    prod_names = Constants.ROTMG_URLS.keys()
+    prod_names = Constants.APPSPOT_URLS.keys()
     for prod_name in prod_names:
-        app_settings = AppSettings(Constants.ROTMG_URLS[prod_name])
+        appspot_url = Constants.APPSPOT_URLS[prod_name]
+        app_settings = AppSettings(appspot_url)
+
         full_build_extract(prod_name, "Client", app_settings.client)
         full_build_extract(prod_name, "Launcher", app_settings.launcher)
-
+        archive_appspot(Constants.APPSPOT_URLS["Production"], "Production")
+    
     logger.log(logging.INFO, "Done!")
 
     # loop the main function to continuously check for new builds 
