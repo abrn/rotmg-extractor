@@ -1,7 +1,7 @@
-import urllib
+import requests
 import xmltodict
-from .Constants import APP_INIT_PATH
 
+from .Constants import *
 
 class AppSettings:
     def __init__(self, url):
@@ -9,8 +9,8 @@ class AppSettings:
         self.__get()
 
     def __get(self):
-        url = self.url + APP_INIT_PATH
-        self.xml = urllib.request.urlopen(url).read()
+        url = self.url + APPSPOT_APP_INIT
+        self.xml = requests.get(url, APPSPOT_PLATFORM_PARAMS).text
         data = xmltodict.parse(self.xml)
 
         # <BuildId>rotmg-exalt-win-64</BuildId>

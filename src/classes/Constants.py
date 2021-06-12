@@ -3,7 +3,7 @@ import pathlib
 #############
 # URL Hosts #
 #############
-ROTMG_URLS = {
+APPSPOT_URLS = {
     "Production": "https://realmofthemadgod.appspot.com",
     "Testing":    "https://rotmgtesting.appspot.com",
     "Testing2":   "https://realmtesting2.appspot.com",
@@ -12,10 +12,10 @@ ROTMG_URLS = {
     "Testing5":   "https://rotmgtesting5.appspot.com"
 }
 
-#############
-# URL Paths #
-#############
-APP_INIT_PATH = "/app/init?platform=standalonewindows64&key=9KnJFxtTvLu2frXv"
+APPSPOT_PLATFORM_PARAMS = {"platform": "standalonewindows64", "key": "9KnJFxtTvLu2frXv"}
+
+# Paths that are actually useful, need to use them in code
+APPSPOT_APP_INIT = "/app/init"
 
 
 ##############
