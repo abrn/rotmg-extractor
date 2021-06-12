@@ -1,0 +1,4 @@
+[submodule "src/binaries/diff2html-cli"]
+	path = src/binaries/diff2html-cli
+	url = https://github.com/rtfpessoa/diff2html-cli
+	ignore = all
