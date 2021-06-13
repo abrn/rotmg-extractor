@@ -177,7 +177,7 @@ def main():
 
         full_build_extract(prod_name, "Client", app_settings.client)
         full_build_extract(prod_name, "Launcher", app_settings.launcher)
-        archive_appspot(Constants.APPSPOT_URLS["Production"], "Production")
+        archive_appspot(appspot_url, prod_name)
     
     logger.log(logging.INFO, "Done!")
 

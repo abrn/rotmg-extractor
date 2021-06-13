@@ -238,3 +238,5 @@ LAUNCHER_UNPACKER_LINUX = BINARIES_DIR / "launcher_unpacker" / "unpacker-linux"
 
 IL2CPP_DUMPER_WINDOWS = BINARIES_DIR / "Il2CppInspector" / "Il2CppInspector-cli-win.exe"
 IL2CPP_DUMPER_LINUX = BINARIES_DIR / "Il2CppInspector" / "Il2CppInspector-linux"
+
+DIFF2HTML_CLI = BINARIES_DIR / "diff2html-cli" / "bin" / "diff2html"
