@@ -13,7 +13,10 @@ ROTMG_URLS = {
 }
 
 WEBSERVER_URL = "https://rotmg.extacy.cc/"
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/854501683518504970/H2uy3h0UJQbsO7pD9kYBjGe0rcyjmkc6iNYrL0OfyuNk97gERcoVlC6SViFo_yhsrQ2q"
+
+# add webhook url + role id to send a discord message when a new Client build is released
+DISCORD_WEBHOOK_URL = ""
+DISCORD_WEBHOOK_ROLE = ""
 
 #############
 # URL Paths #
