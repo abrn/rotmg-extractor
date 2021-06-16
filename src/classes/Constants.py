@@ -12,6 +12,9 @@ ROTMG_URLS = {
     "Testing5":   "https://rotmgtesting5.appspot.com"
 }
 
+WEBSERVER_URL = "https://rotmg.extacy.cc/"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/854501683518504970/H2uy3h0UJQbsO7pD9kYBjGe0rcyjmkc6iNYrL0OfyuNk97gERcoVlC6SViFo_yhsrQ2q"
+
 #############
 # URL Paths #
 #############

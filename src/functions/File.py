@@ -1,5 +1,5 @@
 import os
-import glob
+import subprocess
 import shutil
 import json
 import logging
@@ -118,3 +118,17 @@ def archive_build_files(input_path: Path, output_path: Path, archive: bool, file
         logger.log(logging.INFO, f"Build files copied ({output_path / file_name})")
         IndentFilter.level -= 1
     
+
+def diff_directories(left_dir: Path, right_dir: Path):
+    logger.log(logging.INFO, f"Diff directories: {left_dir} {right_dir}")
+
+    diff_proc = subprocess.Popen(["diff", "--recursive", left_dir, right_dir], stdout=subprocess.PIPE)
+    lines = [ line.decode("utf-8") for line in diff_proc.stdout.readlines()]
+
+    new_files = sum(1 for line in lines if line.startswith(f"Only in {left_dir}"))
+    del_files = sum(1 for line in lines if line.startswith(f"Only in {right_dir}"))
+
+    new_lines = sum(1 for line in lines if line.startswith(f">"))
+    del_lines = sum(1 for line in lines if line.startswith(f"<"))
+
+    return (new_files, del_files, new_lines, del_lines)

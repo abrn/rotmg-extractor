@@ -1,5 +1,6 @@
 import shutil
 import math
+import requests
 from datetime import datetime
 from time import sleep
 
@@ -139,20 +140,54 @@ def output_build(prod_name, build_name, app_settings, work_dir, publish_dir, exa
 
     logger.log(logging.INFO, f"Copying output files...")
 
-    publish_dir_buildhash = publish_dir / app_settings['build_hash']
+    publish_dir_buildhash: Path = publish_dir / app_settings['build_hash']
+    publish_dir_current: Path = publish_dir / "current"
+
     if build_name == "Client" and exalt_version != "":
         publish_dir_buildhash = publish_dir / f"{exalt_version} - {app_settings['build_hash']}"
 
     logger.log(logging.INFO, f"Copying files to {publish_dir_buildhash}")
     shutil.copytree(work_dir, publish_dir_buildhash)
 
-    publish_dir_current = publish_dir / "current"
+    # calculate diff for webhook
+    diff = None
+    if Constants.DISCORD_WEBHOOK_URL != "" and publish_dir_current.exists():
+        diff = diff_directories(work_dir / "extracted_assets", publish_dir_current / "extracted_assets")
+
     if publish_dir_current.exists():
         logger.log(logging.INFO, f"Deleting {publish_dir_current}")
         shutil.rmtree(publish_dir_current)
 
     logger.log(logging.INFO, f"Copying files to {publish_dir_current}")
     shutil.copytree(work_dir, publish_dir_current)
+
+    # send webhook, after files have been copied
+    if diff and build_name == "Client":
+        logger.log(logging.INFO, "Sending discord webhook")
+
+        url = f"{Constants.WEBSERVER_URL}" + str(publish_dir_buildhash.relative_to(Constants.PUBLISH_DIR)) + "/"
+        url = url.replace("\\", "/")
+
+        webhook_json =  {
+            "content": "A new RotMG Exalt Client has been made public! <@&509269140289224704>",
+            "embeds": [
+                {
+                    "color": None,
+                    "fields": [
+                        { "name": "Enviornment", "value": prod_name.title(), "inline": True },
+                        { "name": "Type", "value": build_name.title(), "inline": True },
+                        { "name": "Exalt Version", "value": f"**{exalt_version}**", "inline": True },
+                        {
+                            "name": "Download",
+                            "value": f"```bash\nwget --recursive -np -nH --cut-dirs=2 --reject=\"index.html*\" \"{url}\"\n```"
+                        },
+                        { "name": "Diff Count (extracted assets only)", "value": f"```diff\nfiles: +{diff[0]} -{diff[1]}\nlines: +{diff[2]} -{diff[3]}\n```" }
+                    ]
+                }
+            ]
+        }
+
+        requests.post(Constants.DISCORD_WEBHOOK_URL, json=webhook_json)
 
     sleep(2)
 
