@@ -169,7 +169,7 @@ def output_build(prod_name, build_name, app_settings, work_dir, publish_dir, exa
         url = url.replace("\\", "/")
 
         webhook_json =  {
-            "content": "A new RotMG Exalt Client has been made public! <@&509269140289224704>",
+            "content": f"A new RotMG Exalt Client has been made public! <@&{Constants.DISCORD_WEBHOOK_ROLE}>",
             "embeds": [
                 {
                     "color": None,
