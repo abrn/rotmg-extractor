@@ -1,11 +1,32 @@
+import math
 import os
 import subprocess
 import shutil
 import json
 import logging
+import re as regex
 from pathlib import Path
 from xml.etree import ElementTree
+
+from PIL import Image, ImageFilter
+
 from classes import logger, IndentFilter
+
+
+def parse_int(str):
+    if type(str) is int:
+        return str
+    
+    base = 10
+    if "0x" in str:
+        base = 0
+    return int(str, base)
+
+
+def strip_non_alphabetic(string: str, replacement=""):
+    stripped = regex.sub("[^a-zA-Z]", replacement, string)
+    return stripped
+
 
 def delete_dir_contents(dir_path, hidden_files=False):
     """ use `shutil.rmtree` instead """
@@ -132,3 +153,5 @@ def diff_directories(left_dir: Path, right_dir: Path):
     del_lines = sum(1 for line in lines if line.startswith(f"<"))
 
     return (new_files, del_files, new_lines, del_lines)
+
+
