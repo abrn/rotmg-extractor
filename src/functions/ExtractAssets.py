@@ -5,12 +5,14 @@ import subprocess
 import re as regex
 import ntpath
 import UnityPy
+import operator
+import threading
 from pathlib import Path
-# from xml.etree import ElementTree
+from xml.etree import ElementTree
+from PIL import Image
 
-from classes import Constants
-from classes import logger, IndentFilter
-from functions.File import *
+from classes import Constants, logger, IndentFilter
+from functions.Helpers import expand_image, outline_image, parse_int, read_json, remove_transparency, scale_image, strip_non_alphabetic
 
 
 def extract_unity_assets(input_dir, output_path):
@@ -301,3 +303,163 @@ def dump_il2cpp(gameassembly: Path, metadata_file: Path, output_dir: Path):
 
     logger.log(logging.INFO, "Done!")
     IndentFilter.level -= 1
+
+def extract_sprite_from_spritesheet(spritesheet_image: Path, pos):
+    left    = pos["x"]
+    top     = pos["y"]
+    right   = pos["x"] + pos["w"]
+    bottom  = pos["y"] + pos["h"]
+    
+    with Image.open(spritesheet_image) as img:
+        img = img.crop((left, top, right, bottom))
+        return img
+
+
+def extract_animated_texture(sprite_output_dir: Path, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_image, generate_gif=True, scale=1):
+
+    sprite_output_dir.mkdir(parents=True, exist_ok=True)
+    sprite_index = parse_int(sprite_index) # ensure index is an integer, some indexes are stored as a hexadecimal value
+    found_sprites = []
+
+    for sprite in spritesheet_json["animatedSprites"]:
+        if sprite["index"] == sprite_index and sprite["spriteData"]["spriteSheetName"] == sprite_file:
+            found_sprites.append(sprite)
+
+    # sort sprites by direction then action
+    # found_sprites.sort(key=operator.itemgetter("direction", "action"))
+    found_sprites.sort(key=operator.itemgetter("action", "direction"))
+    outline_width = 1
+
+    # Save .png
+    chosen_img = extract_sprite_from_spritesheet(spritesheet_image, found_sprites[0]["spriteData"]["position"])
+    chosen_img = scale_image(chosen_img, scale)
+    chosen_img = expand_image(chosen_img, outline_width)
+    chosen_img = outline_image(chosen_img, outline_width)
+    output_file = sprite_output_dir / strip_non_alphabetic(sprite_name)
+    chosen_img.save(output_file.with_suffix(".png"))
+
+    if not generate_gif:
+        return
+
+    # each action+direction has multiple frames (usually 2-3).
+    # we have sorted the sprites by direction (looks better as a GIF)
+
+    # to actually make the GIF we need a list of PIL.Images
+    # to make the gif longer, loop each action+dir a few times
+    # then we combine all images into one gif.
+
+    gif_images: list[Image.Image] = []
+    gif_frame_timing = 225 # ms of each gif frame
+    gif_action_loop = 4 # number of times to repeat the action+dir
+
+    temp_gif_sprites = []
+    for i in range(len(found_sprites)):
+
+        sprite = found_sprites[i]
+        current_action_dir = (sprite["action"], sprite["direction"])
+
+        stop=False
+        if i+1 >= len(found_sprites):
+            stop = True
+        else:
+            next_action_dir = (found_sprites[i+1]["action"], found_sprites[i+1]["direction"])
+            stop = current_action_dir != next_action_dir
+
+        temp_gif_sprites.append(sprite)
+
+        if stop:
+            # reached last sprite in this action=dir
+            # we can now append the gif's frames
+
+            # extract images
+            action_imgs = []
+            for sprite in temp_gif_sprites:
+                img = extract_sprite_from_spritesheet(spritesheet_image, sprite["spriteData"]["position"])
+                img = scale_image(img, scale)
+                img = expand_image(img, outline_width)
+                # img = outline_image(img, outline_width)
+                img = remove_transparency(img)
+                action_imgs.append(img)
+                # gif_images.append(img)
+
+            # append frames
+            for i in range(gif_action_loop):
+                for img in action_imgs:
+                    gif_images.append(img)
+
+            temp_gif_sprites = []
+
+    gif_images[0].save(output_file.with_suffix(".gif"), format="GIF", save_all=True, append_images=gif_images[1:], duration=gif_frame_timing, loop=0)
+
+
+def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
+
+    """
+    Just parse all xml files, dump all sprites
+    We can do specific functions based on xml boolean tags
+    But that can come l8r
+
+    Do this multithreaded ofc
+    """
+
+    logger.log(logging.INFO, "Extracting sprites")
+    IndentFilter.level += 1
+
+    # file paths
+    spritesheet_json = read_json(extracted_assets_dir / "TextAsset" / "spritesheet.json")
+
+    spritesheet_img_animated = extracted_assets_dir / "Texture2D" / "characters.png" # animated textures
+    spritesheet_img_still    = extracted_assets_dir / "Texture2D" / "mapObjects.png" # non animated textures
+
+    sprite_xml_list = [
+        {
+            "file": extracted_assets_dir / "TextAsset" / "skins.xml",
+            "animated": True
+        }
+    ]
+
+    threads: list[threading.Thread] = []
+
+    counter = 0
+
+    for sprite_xml in sprite_xml_list:
+        xml_file: Path = sprite_xml["file"]
+        sprite_output_dir = output_dir / xml_file.stem
+        
+        if sprite_xml["animated"]:
+            logger.log(logging.INFO, f"Extracting animated sprites from \"{xml_file}\".")
+            IndentFilter.level += 1
+
+            tree = ElementTree.parse(xml_file).getroot()
+            for i, object in enumerate(tree):
+
+                sprite_name = object.get("id")
+
+                # if sprite_name != "Beach Party Necromancer": continue
+
+                sprite_index = object.find("AnimatedTexture/Index").text
+                sprite_file = object.find("AnimatedTexture/File").text
+
+                # logger.log(logging.INFO, f"({i+1}/{len(tree)}) Saving animated sprite \"{sprite_name}\" [{sprite_file}-{sprite_index}]")
+                # extract_animated_texture(sprite_output_dir, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, generate_gif=True, scale=16)
+                extract_animated_texture(sprite_output_dir, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, generate_gif=False, scale=100)
+                # thread = threading.Thread(target=extract_animated_texture, args=(sprite_output_dir, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, True, 16))
+                # threads.append(thread)
+                return
+
+                counter += 1
+                if counter > 10:
+                    break
+            if counter > 10:
+                break
+            
+            IndentFilter.level -= 1
+
+    logger.log(logging.INFO, f"Extracting {len(threads)} sprites")
+    for thread in threads: # start all threads
+        thread.start()
+    for thread in threads: # wait for all threads to complete
+        thread.join()
+
+    IndentFilter.level -= 1
+    logger.log(logging.INFO, "Done")

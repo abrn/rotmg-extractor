@@ -155,3 +155,82 @@ def diff_directories(left_dir: Path, right_dir: Path):
     return (new_files, del_files, new_lines, del_lines)
 
 
+def remove_transparency(img: Image.Image, bg_colour=(255, 255, 255)):
+    alpha = img.getchannel("A")
+    new_image = Image.new("RGBA", img.size, bg_colour)
+    new_image.paste(img, mask=alpha)
+    # return new_image.convert("RGB")
+    return new_image
+
+
+def expand_image(img: Image.Image, amount):
+    old_width, old_height = img.size
+    canvas_width = old_width + amount * 2
+    canvas_height = old_height + amount * 2
+    
+    new_image = Image.new(img.mode, (canvas_width, canvas_height))
+    new_image.paste(img, (amount, amount, amount + old_width, amount + old_height))
+    return new_image
+
+def scale_image(img: Image.Image, scale: int, resample=Image.NEAREST):
+    if scale == 1:
+        return img
+
+    width, height = img.size
+    scaled_size = (width * scale, height * scale)
+    return img.resize(scaled_size, resample)
+
+
+def is_pixel_alpha(pixel):
+    return pixel[3] != 0
+
+
+def outline_image(img: Image.Image, outline_width=1):
+
+    # Iterate all pixels in the image
+    # if the pixel is transparent and has a coloured pixel next to it, then it can be outlined.
+    outlined_pixels = []
+
+    for x in range(img.width):
+        for y in range(img.height):
+            current_pixel = (x, y)
+            color = img.getpixel(current_pixel)
+
+            # ignore if the pixel already has a color
+            if color[3] != 0:
+                continue
+
+            coords = []
+            for i in range(1, outline_width + 1):
+                temp_coords = [
+                    (x, y),     # center
+                    (x+i, y),   # right
+                    (x-i, y),   # left
+                    (x, y+i),   # up
+                    (x, y-i),   # down
+
+                    (x+i, y+i), # top-right
+                    (x+i, y-i), # bottom-right
+                    (x-i, y+i), # top-left
+                    (x-i, y-i), # bottom-left
+                ]
+
+                coords += temp_coords
+
+            should_outline = False
+            for coord in coords:
+                if coord[0] <= -1 or coord[1] <= -1: continue # should probably log that outline is too big for the image, or maybe we just run expand_image?
+                if coord[0] >= img.width: continue
+                if coord[1] >= img.height: continue
+                if coord in outlined_pixels: continue
+                if should_outline: break
+
+                color = img.getpixel(coord)
+                if color[3] != 0:
+                    should_outline = True
+                
+            if should_outline:
+                # img.putpixel(current_pixel, (0, 0, 0, 255))
+                outlined_pixels.append(current_pixel)
+
+    return img
