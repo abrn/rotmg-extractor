@@ -316,14 +316,27 @@ def extract_sprite_from_spritesheet(spritesheet_image: Path, pos):
         return img
 
 
-def extract_animated_texture(sprite_output: Path, sprite_index, sprite_file, spritesheet_json, spritesheet_image, generate_gif=True, scale=1):
+def extract_texture(sprite_output: Path, sprite_index, sprite_file, spritesheet_json, spritesheet_image, scale=1):
+    sprite_output.parent.mkdir(parents=True, exist_ok=True)
+    sprite_index = parse_int(sprite_index) # ensure index is an integer, some indexes are stored as a hexadecimal value
+
+    for sprite in spritesheet_json["sprites"]:
+        if sprite["index"] == sprite_index and sprite["spriteSheetName"] == sprite_file:
+            # found_sprites.append(sprite)
+            img = extract_sprite_from_spritesheet(spritesheet_image, sprite["position"])
+            img = scale_image(img, scale)
+            img.save(sprite_output.with_suffix(".png"))
+            return
+
+
+def extract_animated_texture(sprite_output: Path, sprite_index, spritesheet_name, spritesheet_json, spritesheet_image, generate_gif=True, scale=1):
 
     sprite_output.parent.mkdir(parents=True, exist_ok=True)
     sprite_index = parse_int(sprite_index) # ensure index is an integer, some indexes are stored as a hexadecimal value
     found_sprites = []
 
     for sprite in spritesheet_json["animatedSprites"]:
-        if sprite["index"] == sprite_index and sprite["spriteData"]["spriteSheetName"] == sprite_file:
+        if sprite["index"] == sprite_index and sprite["spriteData"]["spriteSheetName"] == spritesheet_name:
             found_sprites.append(sprite)
 
     # sort sprites by direction then action
@@ -410,58 +423,92 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
     spritesheet_img_animated = extracted_assets_dir / "Texture2D" / "characters.png" # animated textures
     spritesheet_img          = extracted_assets_dir / "Texture2D" / "mapObjects.png" # non animated textures
 
-    sprite_xml_list = [
-        {
-            "file": extracted_assets_dir / "TextAsset" / "skins.xml",
-            "animated": True
-        }
+    xml_file_list: list[Path] = [
+        extracted_assets_dir / "TextAsset" / "skins.xml",
+        extracted_assets_dir / "TextAsset" / "pets.xml",
+        extracted_assets_dir / "TextAsset" / "equip.xml",
     ]
 
-    threads: list[threading.Thread] = []
+    # Iterate all xml files
+    for xml_file in xml_file_list:
 
-    for sprite_xml in sprite_xml_list:
-        xml_file: Path = sprite_xml["file"]
+        json_list = []
+        threads: list[threading.Thread] = []
 
         logger.log(logging.INFO, f"Extracting sprites from \"{xml_file}\"")
         IndentFilter.level += 1
         
-        obj_list = []
-
+        # Iterate all sprites
         tree = ElementTree.parse(xml_file).getroot()
         for i, element in enumerate(tree):
+            
             sprite_name = element.get("id")
 
-            obj = xmltodict.parse(ElementTree.tostring(element))
-            obj = obj[element.tag]
+            # Skip useless/unused sprites
+            if sprite_name is None: continue
+            if xml_file.name == "pets.xml" and element.find("PetSkin") is None: continue
+            if xml_file.name == "equip.xml" and element.tag == "EquipmentSet": continue
 
-            if sprite_xml["animated"]:
+            json_obj = xmltodict.parse(ElementTree.tostring(element))
+            json_obj = json_obj[element.tag]
+
+            is_animated = element.find("AnimatedTexture") is not None
+            is_texture = element.find("Texture") is not None
+
+            sprite_output: Path = None
+
+            # Extract sprite images
+            if is_animated:
                 sprite_index = element.find("AnimatedTexture/Index").text
-                sprite_file = element.find("AnimatedTexture/File").text
-                sprite_output: Path = output_dir / sprite_file / strip_non_alphabetic(sprite_name)
+                spritesheet_name = element.find("AnimatedTexture/File").text
+                sprite_output = output_dir / spritesheet_name / strip_non_alphabetic(sprite_name)
 
-                logger.log(logging.INFO, f"({i+1}/{len(tree)}) Found animated sprite \"{sprite_name}\" [{sprite_file}-{sprite_index}]")
-                # extract_animated_texture(sprite_output, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, generate_gif=True, scale=16)
-                thread = threading.Thread(target=extract_animated_texture, args=(sprite_output, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, False, 16))
+                logger.log(logging.INFO, f"({i+1}/{len(tree)}) Found animated sprite \"{sprite_name}\" [{spritesheet_name}-{sprite_index}]")
+                # extract_animated_texture(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img_animated, False, 16)
+                thread = threading.Thread(target=extract_animated_texture, args=(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img_animated, False, 16))
                 threads.append(thread)
 
-                del obj["AnimatedTexture"]
-                output_dir_relative = (extracted_assets_dir.parent / sprite_output).relative_to(Constants.WORK_DIR)
-                output_dir_relative = str(output_dir_relative).replace("\\", "/")
-                obj["texture"] = Constants.WEBSERVER_URL + output_dir_relative + ".png"
-                # obj["animated_texture"] = Constants.WEBSERVER_URL + output_dir_relative + ".gif"
-                obj_list.append(obj)
+            elif is_texture:
+                sprite_index = element.find("Texture/Index").text
+                spritesheet_name = element.find("Texture/File").text
+                sprite_output = output_dir / spritesheet_name / strip_non_alphabetic(sprite_name)
+
+                logger.log(logging.INFO, f"({i+1}/{len(tree)}) Found non-animated sprite \"{sprite_name}\" [{spritesheet_name}-{sprite_index}]")
+                # extract_texture(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img, 16)
+                thread = threading.Thread(target=extract_texture, args=(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img, 16))
+                threads.append(thread)
+
+            if sprite_output is None:
+                logger.log(logging.ERROR, f"Unable to find Texture for sprite {sprite_name} in {xml_file}")
                 continue
 
+            # Add json object to list
+            url_path = (extracted_assets_dir.parent / sprite_output).relative_to(Constants.WORK_DIR)
+            url_path = str(url_path).replace("\\", "/")
+
+            if is_animated:
+                del json_obj["AnimatedTexture"]
+                json_obj["animated_texture"] = Constants.WEBSERVER_URL + url_path + ".gif"
+
+            elif is_texture:
+                del json_obj["Texture"]
+
+            json_obj["texture"] = Constants.WEBSERVER_URL + url_path + ".png"
+            json_list.append(json_obj)
+
+        # Do threads
         logger.log(logging.INFO, f"Extracting {len(threads)} sprites")
         for thread in threads: # start all threads
             thread.start()
         for thread in threads: # wait for all threads to complete
             thread.join()
 
+        # Write json file of all extracted sprites
         output_json_file = output_dir / (xml_file.stem + ".json")
         logger.log(logging.INFO, f"Writing to {output_json_file}")
-        write_file(output_json_file, json.dumps(obj_list, indent=4), overwrite=True)
+        write_file(output_json_file, json.dumps(json_list, indent=4), overwrite=True)
 
+        logger.log(logging.INFO, f"Done")
         IndentFilter.level -= 1
 
     IndentFilter.level -= 1
