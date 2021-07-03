@@ -116,6 +116,38 @@ def merge_xml(files):
     return ElementTree.tostring(xml_data).decode("utf-8")
 
 
+def fix_xml(xml_lines: str) -> str:
+    """ Removes non valid XML lines """
+
+    output_lines = []
+    in_tag = True
+    for line in xml_lines.split("\n"):
+
+        include_line = False
+
+        # Opening Tag: `<Texture>`
+        if regex.match(r"^\s*<\w+>$", line):
+            in_tag = True
+            include_line = True
+
+        # Opening Tag: `<Texture>`
+        elif regex.match(r"^\s*<\/\w+>$", line):
+            in_tag = False
+            include_line = True
+
+        # Any </Tag/>
+        elif regex.match(r"^\s*<", line):
+            include_line = True
+
+        if in_tag:
+            include_line = True
+
+        if include_line:
+            output_lines.append(line)
+
+    return "\n".join(output_lines)
+
+
 def archive_build_files(input_path: Path, output_path: Path, archive: bool, file_name="build_files", format="zip"):
 
     if archive:

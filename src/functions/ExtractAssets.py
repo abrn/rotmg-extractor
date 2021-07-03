@@ -13,7 +13,7 @@ from xml.etree import ElementTree
 from PIL import Image
 
 from classes import Constants, logger, IndentFilter
-from .Helpers import expand_image, find_path, outline_image, parse_int, read_json, remove_transparency, scale_image, strip_non_alphabetic, write_file
+from .Helpers import expand_image, find_path, fix_xml, outline_image, parse_int, read_file, read_json, remove_transparency, scale_image, strip_non_alphabetic, write_file
 
 
 def extract_unity_assets(input_dir, output_path):
@@ -423,14 +423,21 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
     spritesheet_img_animated = extracted_assets_dir / "Texture2D" / "characters.png" # animated textures
     spritesheet_img          = extracted_assets_dir / "Texture2D" / "mapObjects.png" # non animated textures
 
-    xml_file_list: list[Path] = [
-        extracted_assets_dir / "TextAsset" / "skins.xml",
-        extracted_assets_dir / "TextAsset" / "pets.xml",
-        extracted_assets_dir / "TextAsset" / "equip.xml",
+    xml_file_list = list((extracted_assets_dir / "TextAsset").glob("*.xml"))
+    # xml_file_list: list[Path] = [
+    #     extracted_assets_dir / "TextAsset" / "belladonna.xml"
+    # ]
+
+    # non rotmg xml files
+    ignored_files = [
+        "assets_manifest.xml",
+        "iso_4217.xml"
     ]
 
     # Iterate all xml files
     for xml_file in xml_file_list:
+
+        if xml_file.name in ignored_files: continue
 
         json_list = []
         threads: list[threading.Thread] = []
@@ -439,7 +446,7 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
         IndentFilter.level += 1
         
         # Iterate all sprites
-        tree = ElementTree.parse(xml_file).getroot()
+        tree = ElementTree.fromstring(fix_xml(read_file(xml_file)))
         for i, element in enumerate(tree):
             
             sprite_name = element.get("id")
@@ -506,7 +513,7 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
         # Write json file of all extracted sprites
         output_json_file = output_dir / (xml_file.stem + ".json")
         logger.log(logging.INFO, f"Writing to {output_json_file}")
-        write_file(output_json_file, json.dumps(json_list, indent=4), overwrite=True)
+        write_file(output_json_file, json.dumps(json_list, indent=2), overwrite=True)
 
         logger.log(logging.INFO, f"Done")
         IndentFilter.level -= 1
