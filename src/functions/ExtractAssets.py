@@ -7,6 +7,7 @@ import ntpath
 import UnityPy
 import operator
 import threading
+import xmltodict
 from pathlib import Path
 from xml.etree import ElementTree
 from PIL import Image
@@ -315,9 +316,9 @@ def extract_sprite_from_spritesheet(spritesheet_image: Path, pos):
         return img
 
 
-def extract_animated_texture(sprite_output_dir: Path, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_image, generate_gif=True, scale=1):
+def extract_animated_texture(sprite_output: Path, sprite_index, sprite_file, spritesheet_json, spritesheet_image, generate_gif=True, scale=1):
 
-    sprite_output_dir.mkdir(parents=True, exist_ok=True)
+    sprite_output.parent.mkdir(parents=True, exist_ok=True)
     sprite_index = parse_int(sprite_index) # ensure index is an integer, some indexes are stored as a hexadecimal value
     found_sprites = []
 
@@ -332,11 +333,10 @@ def extract_animated_texture(sprite_output_dir: Path, sprite_name, sprite_index,
 
     # Save .png
     chosen_img = extract_sprite_from_spritesheet(spritesheet_image, found_sprites[0]["spriteData"]["position"])
-    chosen_img = scale_image(chosen_img, scale)
-    chosen_img = expand_image(chosen_img, outline_width)
-    chosen_img = outline_image(chosen_img, outline_width)
-    output_file = sprite_output_dir / strip_non_alphabetic(sprite_name)
-    chosen_img.save(output_file.with_suffix(".png"))
+    # chosen_img = scale_image(chosen_img, scale)
+    # chosen_img = expand_image(chosen_img, outline_width)
+    # chosen_img = outline_image(chosen_img, outline_width)
+    chosen_img.save(sprite_output.with_suffix(".png"))
 
     if not generate_gif:
         return
@@ -389,7 +389,7 @@ def extract_animated_texture(sprite_output_dir: Path, sprite_name, sprite_index,
 
             temp_gif_sprites = []
 
-    gif_images[0].save(output_file.with_suffix(".gif"), format="GIF", save_all=True, append_images=gif_images[1:], duration=gif_frame_timing, loop=0)
+    gif_images[0].save(sprite_output.with_suffix(".gif"), format="GIF", save_all=True, append_images=gif_images[1:], duration=gif_frame_timing, loop=0)
 
 
 def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
@@ -407,9 +407,8 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
 
     # file paths
     spritesheet_json = read_json(extracted_assets_dir / "TextAsset" / "spritesheet.json")
-
     spritesheet_img_animated = extracted_assets_dir / "Texture2D" / "characters.png" # animated textures
-    spritesheet_img_still    = extracted_assets_dir / "Texture2D" / "mapObjects.png" # non animated textures
+    spritesheet_img          = extracted_assets_dir / "Texture2D" / "mapObjects.png" # non animated textures
 
     sprite_xml_list = [
         {
@@ -422,33 +421,48 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
 
     for sprite_xml in sprite_xml_list:
         xml_file: Path = sprite_xml["file"]
-        sprite_output_dir = output_dir / xml_file.stem
+
+        logger.log(logging.INFO, f"Extracting sprites from \"{xml_file}\"")
+        IndentFilter.level += 1
         
-        if sprite_xml["animated"]:
-            logger.log(logging.INFO, f"Extracting animated sprites from \"{xml_file}\".")
-            IndentFilter.level += 1
+        obj_list = []
 
-            tree = ElementTree.parse(xml_file).getroot()
-            for i, object in enumerate(tree):
+        tree = ElementTree.parse(xml_file).getroot()
+        for i, element in enumerate(tree):
+            sprite_name = element.get("id")
 
-                sprite_name = object.get("id")
+            obj = xmltodict.parse(ElementTree.tostring(element))
+            obj = obj[element.tag]
 
-                sprite_index = object.find("AnimatedTexture/Index").text
-                sprite_file = object.find("AnimatedTexture/File").text
+            if sprite_xml["animated"]:
+                sprite_index = element.find("AnimatedTexture/Index").text
+                sprite_file = element.find("AnimatedTexture/File").text
+                sprite_output: Path = output_dir / sprite_file / strip_non_alphabetic(sprite_name)
 
-                logger.log(logging.INFO, f"({i+1}/{len(tree)}) Extracting animated sprite \"{sprite_name}\" [{sprite_file}-{sprite_index}]")
-                # extract_animated_texture(sprite_output_dir, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, generate_gif=True, scale=16)
-
-                thread = threading.Thread(target=extract_animated_texture, args=(sprite_output_dir, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, True, 16))
+                logger.log(logging.INFO, f"({i+1}/{len(tree)}) Found animated sprite \"{sprite_name}\" [{sprite_file}-{sprite_index}]")
+                # extract_animated_texture(sprite_output, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, generate_gif=True, scale=16)
+                thread = threading.Thread(target=extract_animated_texture, args=(sprite_output, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, False, 16))
                 threads.append(thread)
-            
-            IndentFilter.level -= 1
 
-    logger.log(logging.INFO, f"Extracting {len(threads)} sprites")
-    for thread in threads: # start all threads
-        thread.start()
-    for thread in threads: # wait for all threads to complete
-        thread.join()
+                del obj["AnimatedTexture"]
+                output_dir_relative = (extracted_assets_dir.parent / sprite_output).relative_to(Constants.WORK_DIR)
+                output_dir_relative = str(output_dir_relative).replace("\\", "/")
+                obj["texture"] = Constants.WEBSERVER_URL + output_dir_relative + ".png"
+                # obj["animated_texture"] = Constants.WEBSERVER_URL + output_dir_relative + ".gif"
+                obj_list.append(obj)
+                continue
+
+        logger.log(logging.INFO, f"Extracting {len(threads)} sprites")
+        for thread in threads: # start all threads
+            thread.start()
+        for thread in threads: # wait for all threads to complete
+            thread.join()
+
+        output_json_file = output_dir / (xml_file.stem + ".json")
+        logger.log(logging.INFO, f"Writing to {output_json_file}")
+        write_file(output_json_file, json.dumps(obj_list, indent=4), overwrite=True)
+
+        IndentFilter.level -= 1
 
     IndentFilter.level -= 1
     logger.log(logging.INFO, "Done")
