@@ -12,7 +12,7 @@ from xml.etree import ElementTree
 from PIL import Image
 
 from classes import Constants, logger, IndentFilter
-from functions.Helpers import expand_image, outline_image, parse_int, read_json, remove_transparency, scale_image, strip_non_alphabetic
+from .Helpers import expand_image, find_path, outline_image, parse_int, read_json, remove_transparency, scale_image, strip_non_alphabetic, write_file
 
 
 def extract_unity_assets(input_dir, output_path):
@@ -420,8 +420,6 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
 
     threads: list[threading.Thread] = []
 
-    counter = 0
-
     for sprite_xml in sprite_xml_list:
         xml_file: Path = sprite_xml["file"]
         sprite_output_dir = output_dir / xml_file.stem
@@ -435,23 +433,14 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
 
                 sprite_name = object.get("id")
 
-                # if sprite_name != "Beach Party Necromancer": continue
-
                 sprite_index = object.find("AnimatedTexture/Index").text
                 sprite_file = object.find("AnimatedTexture/File").text
 
-                # logger.log(logging.INFO, f"({i+1}/{len(tree)}) Saving animated sprite \"{sprite_name}\" [{sprite_file}-{sprite_index}]")
+                logger.log(logging.INFO, f"({i+1}/{len(tree)}) Extracting animated sprite \"{sprite_name}\" [{sprite_file}-{sprite_index}]")
                 # extract_animated_texture(sprite_output_dir, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, generate_gif=True, scale=16)
-                extract_animated_texture(sprite_output_dir, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, generate_gif=False, scale=100)
-                # thread = threading.Thread(target=extract_animated_texture, args=(sprite_output_dir, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, True, 16))
-                # threads.append(thread)
-                return
 
-                counter += 1
-                if counter > 10:
-                    break
-            if counter > 10:
-                break
+                thread = threading.Thread(target=extract_animated_texture, args=(sprite_output_dir, sprite_name, sprite_index, sprite_file, spritesheet_json, spritesheet_img_animated, True, 16))
+                threads.append(thread)
             
             IndentFilter.level -= 1
 

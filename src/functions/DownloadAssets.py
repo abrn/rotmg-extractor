@@ -9,7 +9,8 @@ import logging
 from urllib.error import HTTPError
 from pathlib import Path
 
-from functions import read_json, unpack_launcher_assets
+from .ExtractAssets import unpack_launcher_assets
+from .Helpers import read_json
 from classes import logger, IndentFilter
 
 def download_asset(build_url, url_path, file_name, output_path, gz=True):
