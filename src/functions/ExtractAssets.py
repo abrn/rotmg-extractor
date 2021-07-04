@@ -432,7 +432,8 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
     # non rotmg xml files
     ignored_files = [
         "assets_manifest.xml",
-        "iso_4217.xml"
+        "iso_4217.xml",
+        "forgeProperties.xml"
     ]
 
     # Iterate all xml files
@@ -495,13 +496,9 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
             url_path = str(url_path).replace("\\", "/")
 
             if is_animated:
-                del json_obj["AnimatedTexture"]
-                json_obj["animated_texture"] = Constants.WEBSERVER_URL + url_path + ".gif"
+                json_obj["animated_texture_url"] = Constants.WEBSERVER_URL + url_path + ".gif"
 
-            elif is_texture:
-                del json_obj["Texture"]
-
-            json_obj["texture"] = Constants.WEBSERVER_URL + url_path + ".png"
+            json_obj["texture_url"] = Constants.WEBSERVER_URL + url_path + ".png"
             json_list.append(json_obj)
 
         # Do threads
