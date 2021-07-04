@@ -1,8 +1,8 @@
 import shutil
 import math
+import time
 import requests
 from datetime import datetime
-from time import sleep
 
 from classes import AppSettings
 from classes import logger
@@ -22,6 +22,8 @@ def full_build_extract(prod_name, build_name, app_settings):
     logger.log(logging.INFO, f"Starting {prod_name} {build_name}")
     IndentFilter.level += 1
 
+    start_time = time.time()
+
     pre_setup = pre_build_setup(prod_name, build_name, app_settings, work_dir, publish_dir)
     if not pre_setup:
         return False
@@ -36,7 +38,11 @@ def full_build_extract(prod_name, build_name, app_settings):
 
     output_build(prod_name, build_name, app_settings, work_dir, publish_dir, extracted[0])
 
+    end_time = time.time()
+    elapsed = math.ceil(end_time - start_time)
+
     logger.log(logging.INFO, f"Done {prod_name} {build_name}")
+    logger.log(logging.INFO, f"Time Elapsed: {elapsed} seconds")
     IndentFilter.level -= 1
 
 
@@ -100,7 +106,7 @@ def extract_build(build_name, build_files_dir, work_dir):
     * Extracts all Unity assets using UnityPy.
     * Attempts to extract the current Exalt Version from il2cpp metadata.
     * Merges xml files (objects/tiles), for client builds.
-    * Dumps Il2Cpp using  Il2CppInspector.
+    * Dumps Il2Cpp using Il2CppInspector.
     Returns the Exalt Version (for client) or "" for launcher.
     """
 
@@ -113,7 +119,9 @@ def extract_build(build_name, build_files_dir, work_dir):
         metadata_file = build_files_dir / "RotMG Exalt_Data" / "il2cpp_data" / "Metadata" / "global-metadata.dat"
         exalt_version = extract_exalt_version(metadata_file, work_dir / "exalt_version.txt")
 
-        merge_xml_files(extracted_assets_dir / "TextAsset" / "manifest.json", extracted_assets_dir, work_dir)
+        merge_manifest_files(extracted_assets_dir / "TextAsset" / "manifest.json", extracted_assets_dir, work_dir)
+
+        extract_sprites(work_dir / "sprites", extracted_assets_dir)
 
     # Dump il2cpp using Il2CppInspector
     data_dir = find_path(build_files_dir, "*_Data")
@@ -121,7 +129,7 @@ def extract_build(build_name, build_files_dir, work_dir):
     gameassembly = build_files_dir / "GameAssembly.dll"
     dump_output = work_dir / "il2cpp_dump"
     dump_il2cpp(gameassembly, metadata, dump_output)
-    
+
     return (exalt_version,)
 
 
@@ -189,7 +197,7 @@ def output_build(prod_name, build_name, app_settings, work_dir, publish_dir, exa
 
         requests.post(Constants.DISCORD_WEBHOOK_URL, json=webhook_json)
 
-    sleep(2)
+    time.sleep(2)
 
     logger.log(logging.INFO, f"Done!")
     IndentFilter.level -= 1
@@ -200,7 +208,7 @@ def main():
 
     # Delete previous contents of ./temp/
     shutil.rmtree(Constants.TEMP_DIR, ignore_errors=True)
-    sleep(5) # Wait for filesystem to catch up / prevent bugs
+    time.sleep(5) # Wait for filesystem to catch up / prevent bugs
 
     # Setup logger
     logger.setup()
@@ -216,7 +224,7 @@ def main():
     # loop the main function to continuously check for new builds 
     loop_time = 10 # minutes
     logger.log(logging.INFO, f"Looping in {loop_time} minutes...\n\n")
-    sleep(loop_time * 60)
+    time.sleep(loop_time * 60)
     main()
 
 

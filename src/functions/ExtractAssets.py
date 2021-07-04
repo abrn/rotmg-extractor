@@ -13,7 +13,7 @@ from xml.etree import ElementTree
 from PIL import Image
 
 from classes import Constants, logger, IndentFilter
-from .Helpers import expand_image, find_path, fix_xml, outline_image, parse_int, read_file, read_json, remove_transparency, scale_image, strip_non_alphabetic, write_file
+from .Helpers import expand_image, find_path, fix_xml, merge_xml, outline_image, parse_int, read_file, read_json, remove_transparency, scale_image, strip_non_alphabetic, write_file
 
 
 def extract_unity_assets(input_dir, output_path):
@@ -193,8 +193,8 @@ def extract_exalt_version(metadata_file: Path, output_file: Path):
     return version_string
 
 
-def merge_xml_files(manifest_file: Path, input_dir: Path, output_dir: Path):
-    logger.log(logging.INFO, f"Merging xml files...")
+def merge_manifest_files(manifest_file: Path, input_dir: Path, output_dir: Path):
+    logger.log(logging.INFO, f"Merging manifest file...")
     IndentFilter.level += 1
 
     if not manifest_file.exists():
@@ -235,8 +235,6 @@ def merge_xml_files(manifest_file: Path, input_dir: Path, output_dir: Path):
         output_file = output_dir / "xml" / f"{output_file_name}.xml"
         write_file(output_file, merged, overwrite=False)
         logger.log(logging.INFO, f"Successfully merged {len(file_names)} files into {output_file_name}.xml")
-
-        # TODO: convert to json (see nrelay code)
 
     IndentFilter.level -= 1
 
@@ -346,7 +344,7 @@ def extract_animated_texture(sprite_output: Path, sprite_index, spritesheet_name
 
     # Save .png
     chosen_img = extract_sprite_from_spritesheet(spritesheet_image, found_sprites[0]["spriteData"]["position"])
-    # chosen_img = scale_image(chosen_img, scale)
+    chosen_img = scale_image(chosen_img, scale)
     # chosen_img = expand_image(chosen_img, outline_width)
     # chosen_img = outline_image(chosen_img, outline_width)
     chosen_img.save(sprite_output.with_suffix(".png"))
@@ -415,6 +413,9 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
     Do this multithreaded ofc
     """
 
+    IMAGE_UPSCALE = 1 #16
+    GENERATE_GIF = False
+
     logger.log(logging.INFO, "Extracting sprites")
     IndentFilter.level += 1
 
@@ -471,8 +472,8 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
                 sprite_output = output_dir / spritesheet_name / strip_non_alphabetic(sprite_name)
 
                 logger.log(logging.INFO, f"({i+1}/{len(tree)}) Found animated sprite \"{sprite_name}\" [{spritesheet_name}-{sprite_index}]")
-                # extract_animated_texture(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img_animated, False, 16)
-                thread = threading.Thread(target=extract_animated_texture, args=(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img_animated, False, 16))
+                # extract_animated_texture(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img_animated, False, IMAGE_UPSCALE)
+                thread = threading.Thread(target=extract_animated_texture, args=(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img_animated, GENERATE_GIF, IMAGE_UPSCALE))
                 threads.append(thread)
 
             elif is_texture:
@@ -481,12 +482,12 @@ def extract_sprites(output_dir: Path, extracted_assets_dir: Path):
                 sprite_output = output_dir / spritesheet_name / strip_non_alphabetic(sprite_name)
 
                 logger.log(logging.INFO, f"({i+1}/{len(tree)}) Found non-animated sprite \"{sprite_name}\" [{spritesheet_name}-{sprite_index}]")
-                # extract_texture(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img, 16)
-                thread = threading.Thread(target=extract_texture, args=(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img, 16))
+                # extract_texture(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img, IMAGE_UPSCALE)
+                thread = threading.Thread(target=extract_texture, args=(sprite_output, sprite_index, spritesheet_name, spritesheet_json, spritesheet_img, IMAGE_UPSCALE))
                 threads.append(thread)
 
             if sprite_output is None:
-                logger.log(logging.ERROR, f"Unable to find Texture for sprite {sprite_name} in {xml_file}")
+                logger.log(logging.ERROR, f"Unable to find Texture for sprite \"{sprite_name}\" in {xml_file.name}")
                 continue
 
             # Add json object to list
