@@ -1,0 +1,15 @@
+[flake8]
+# The max character length before a syntax error is shown
+max-line-length=128,
+#
+max-complexity=10,
+
+ignore=
+# E701:
+# E201: whitespace after '['
+# E202: whitespace before ']'
+E201, E202,
+# E201: block coment should start with '# '
+# E201: too many leading '#' block comment
+E265, E266
+exclude=__pycache__, __init__.py

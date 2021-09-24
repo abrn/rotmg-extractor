@@ -1,0 +1,73 @@
+
+# time to wait in minutes between checking for new client builds
+client_check_delay = 5
+
+# time to wait in minutes between checking for new launcher builds
+launcher_check_delay = 30
+
+
+output:
+
+
+logging:
+  enabled = true
+  debug = true
+  
+  # log messages to the console when a new build is available
+  console:
+    enabled: true
+    # use colors to denote message severity levels
+    colors: true
+  
+  # log to a file when a new build is available
+  file:
+    enabled: true
+    name: "extractor.log"
+    warnings: "extractor.warn.log"
+    errors: "extractor.errors.log"
+
+  # send a Discord webhook to a channel when a new build is available
+  discord:
+    enabled: true
+    color: "#3366a9"
+    # a list of webooks that will be contacted
+    webhooks:
+      - exampleone:
+        - url: ""
+        # the id of a role that can receive a ping (leave blank to disable)
+        - role: ""
+      - exampletwo:
+        - url: ""
+        - role: ""
+  
+  # upload files via SSH file transfer when a new build is available
+  ssh:
+    enabled: true
+    hostname: "test"
+    port: 21
+    username: "test"  # optional
+    password: "test"  # optional
+    # the remote directory for uploading the build
+    directory: ""
+
+  # upload files via an FTP server when a new build is available
+  ftp:
+    enabled: false
+    hostname: "127.0.0.1"
+    port: 21
+    username: "test"  # optional
+    password: "test"  # optional
+    # the remote directory for uploading the build
+    directory: ""
+
+  # send a redis pub-sub message to a channel when a new build is available
+  redis:
+    enabled: false
+    hostname: "127.0.0.1"
+    port: "6739"
+    username: ""  # optional
+    password: ""  # optional
+    # a list of channels to send a publish message to
+    channels:
+      - name: "build-updates"
+      - name: "example-channel"

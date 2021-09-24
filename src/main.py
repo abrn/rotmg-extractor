@@ -1,8 +1,8 @@
+import time
 import shutil
 import math
 import requests
 from datetime import datetime
-from time import sleep
 
 from classes import AppSettings
 from classes import logger
@@ -16,10 +16,10 @@ def full_build_extract(prod_name, build_name, app_settings):
     publish_dir: Path   = Constants.PUBLISH_DIR / prod_name.lower() / build_name.lower()    # ./output/publish/production/client
 
     log_file = work_dir / "log.txt"
-    logger.setFileLog(log_file)
-    logger.printTime()
+    logger.set_file_log(log_file)
+    logger.print_time()
 
-    logger.log(logging.INFO, f"Starting {prod_name} {build_name}")
+    logger.log(f"Starting {prod_name} {build_name}")
     IndentFilter.level += 1
 
     pre_setup = pre_build_setup(prod_name, build_name, app_settings, work_dir, publish_dir)
@@ -36,7 +36,7 @@ def full_build_extract(prod_name, build_name, app_settings):
 
     output_build(prod_name, build_name, app_settings, work_dir, publish_dir, extracted[0])
 
-    logger.log(logging.INFO, f"Done {prod_name} {build_name}")
+    logger.log(f"Done {prod_name} {build_name}")
     IndentFilter.level -= 1
 
 
@@ -57,11 +57,11 @@ def pre_build_setup(prod_name, build_name, app_settings, work_dir, publish_dir):
     if build_hash_file.is_file():
         current_build_hash = read_file(build_hash_file)
         if current_build_hash == app_settings["build_hash"]:
-            logger.log(logging.INFO, f"Current build hash is equal, aborting.")
+            logger.log(f"Current build hash is equal, aborting.")
             IndentFilter.level -= 1
             return False
 
-    logger.log(logging.INFO, f"New build! Build hash: {app_settings['build_hash']}")
+    logger.log(f"New build! Build hash: {app_settings['build_hash']}")
     write_file(work_dir / "build_hash.txt", app_settings["build_hash"], overwrite=True)
     write_file(work_dir / "build_version.txt", app_settings["build_version"], overwrite=True)
     return True
@@ -75,7 +75,7 @@ def download_archive_build(prod_name, build_name, app_settings, files_dir, work_
     """
 
     build_url = app_settings["build_cdn"] + app_settings["build_hash"] + "/" + app_settings["build_id"]
-    logger.log(logging.INFO, f"Build URL is {build_url}")
+    logger.log(f"Build URL is {build_url}")
 
     # Download build files, output directory can change depending 
     # if it's the client vs how the launcher exe is unpacked 
@@ -132,56 +132,77 @@ def output_build(prod_name, build_name, app_settings, work_dir, publish_dir, exa
     * Copies the output files to the published dir
     """
 
-    logger.log(logging.INFO, "Outputting build...")
+    logger.log("Outputting build...")
     IndentFilter.level += 1
 
     timestamp = math.floor(datetime.now().timestamp())
     write_file(work_dir / "timestamp.txt", str(timestamp))
 
-    logger.log(logging.INFO, f"Copying output files...")
+    logger.log(f"Copying output files...")
 
     publish_dir_buildhash: Path = publish_dir / app_settings['build_hash']
     publish_dir_current: Path = publish_dir / "current"
 
+    timestamp = time.time()
+
     if build_name == "Client" and exalt_version != "":
+        # create the name of the folder e.g timestamp + build version + build hash
+        publish_dir_buildhash = publish_dir / f"{exalt_version} - {app_settings['build_hash']}"
+    elif build_name == "Client" and exalt_version == "":
+        # failed to parse an exalt version, use a timestamp only
         publish_dir_buildhash = publish_dir / f"{exalt_version} - {app_settings['build_hash']}"
 
-    logger.log(logging.INFO, f"Copying files to {publish_dir_buildhash}")
+    logger.log(f"Copying files to {publish_dir_buildhash}")
     shutil.copytree(work_dir, publish_dir_buildhash)
+
+    # check if a webhook URL is set
+    if Constants.DISCORD_WEBHOOK_URL != "":
+        # TODO: get this URL from a config file
+        logger.log("No webhook URL set - ignoring")
+    
+    # TODO: implement RSS here
 
     # calculate diff for webhook
     diff = None
-    if Constants.DISCORD_WEBHOOK_URL != "" and publish_dir_current.exists():
+    if publish_dir_current.exists():
         diff = diff_directories(work_dir / "extracted_assets", publish_dir_current / "extracted_assets")
+    else:
+        logger.log(logging.WARN, "No published directory exists.. failed making build diff")
+
 
     if publish_dir_current.exists():
-        logger.log(logging.INFO, f"Deleting {publish_dir_current}")
+        logger.log(f"Deleting {publish_dir_current}")
         shutil.rmtree(publish_dir_current)
 
-    logger.log(logging.INFO, f"Copying files to {publish_dir_current}")
+    logger.log(f"Copying files to {publish_dir_current}")
     shutil.copytree(work_dir, publish_dir_current)
 
     # send webhook, after files have been copied
     if diff and build_name == "Client":
-        logger.log(logging.INFO, "Sending discord webhook")
+        logger.log("Sending discord webhook")
 
         url = f"{Constants.WEBSERVER_URL}" + str(publish_dir_buildhash.relative_to(Constants.PUBLISH_DIR)) + "/"
         url = url.replace("\\", "/")
 
         webhook_json =  {
-            "content": f"A new RotMG Exalt Client has been made public! <@&{Constants.DISCORD_WEBHOOK_ROLE}>",
+            "content": f"A new RotMG client build has been made public <@&{Constants.DISCORD_WEBHOOK_ROLE}>",
             "embeds": [
                 {
                     "color": None,
                     "fields": [
-                        { "name": "Enviornment", "value": prod_name.title(), "inline": True },
+                        { "name": "Environment", "value": f"**{prod_name.title()}", "inline": True },
                         { "name": "Type", "value": build_name.title(), "inline": True },
                         { "name": "Exalt Version", "value": f"**{exalt_version}**", "inline": True },
                         {
-                            "name": "Download",
+                            "name": "Download via CLI",
                             "value": f"```bash\nwget --recursive -np -nH --cut-dirs=2 --reject=\"index.html*\" \"{url}\"\n```"
+                            # wget --recursive -np -nH --cut-dirs=2 --reject="index.html*" "{url}"
                         },
-                        { "name": "Diff Count (extracted assets only)", "value": f"```diff\nfiles: +{diff[0]} -{diff[1]}\nlines: +{diff[2]} -{diff[3]}\n```" }
+                        {   "name": "Difference from last build (extracted assets)", 
+                            "value": f"```diff\nfiles: +{diff[0]} -{diff[1]}\nlines: +{diff[2]} -{diff[3]}\n```" 
+                            # files: +2 -15
+                            # lines: +342 -958    
+                        }
                     ]
                 }
             ]
@@ -189,18 +210,19 @@ def output_build(prod_name, build_name, app_settings, work_dir, publish_dir, exa
 
         requests.post(Constants.DISCORD_WEBHOOK_URL, json=webhook_json)
 
-    sleep(2)
-
-    logger.log(logging.INFO, f"Done!")
+    logger.log(f"Done!")
     IndentFilter.level -= 1
     return True
 
 
-def main():
+def app_loop():
+    
+    pass
 
+def main():
     # Delete previous contents of ./temp/
     shutil.rmtree(Constants.TEMP_DIR, ignore_errors=True)
-    sleep(5) # Wait for filesystem to catch up / prevent bugs
+    time.sleep(5) # Wait for filesystem to catch up / prevent bugs
 
     # Setup logger
     logger.setup()
@@ -211,12 +233,12 @@ def main():
         full_build_extract(prod_name, "Client", app_settings.client)
         full_build_extract(prod_name, "Launcher", app_settings.launcher)
 
-    logger.log(logging.INFO, "Done!")
+    logger.log("Done!")
 
     # loop the main function to continuously check for new builds 
     loop_time = 10 # minutes
-    logger.log(logging.INFO, f"Looping in {loop_time} minutes...\n\n")
-    sleep(loop_time * 60)
+    logger.log(f"Looping in {loop_time} minutes...\n\n")
+    time.sleep(loop_time * 60)
     main()
 
 
