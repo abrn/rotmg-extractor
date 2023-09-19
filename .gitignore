@@ -2,6 +2,10 @@
 *.code-workspace
 .vscode
 
+# jetbrains
+.idea/discord.xml
+.idea/workspace.xml
+
 # python
 venv
 __pycache__
