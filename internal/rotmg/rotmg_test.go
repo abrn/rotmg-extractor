@@ -2,8 +2,17 @@ package rotmg
 
 import "testing"
 
-// sampleXML matches the documented /app/init response shape.
+// sampleXML mirrors the real /app/init response: game-settings fields (which
+// must be ignored) precede the build fields, exactly as the live endpoint
+// returns them.
 const sampleXML = `<AppSettings>
+  <UseExternalPayments>1</UseExternalPayments>
+  <MaxStackablePotions>6</MaxStackablePotions>
+  <PotionPurchaseCosts><cost>5</cost><cost>10</cost></PotionPurchaseCosts>
+  <FilterList>
+some\bregex
+END</FilterList>
+  <ExtendViewRadius/>
   <BuildId>rotmg-exalt-win-64</BuildId>
   <BuildHash>a1c8d9ae2a2508dcc3994b33dd6a803a</BuildHash>
   <BuildVersion>a9cb33d6944a7f8bbf7181c71cc932f11ed85ba3</BuildVersion>

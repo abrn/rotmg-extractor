@@ -12,11 +12,15 @@ import (
 	"time"
 )
 
-// appInitPath is the AppEngine endpoint that returns the current build
-// settings as XML.
-const appInitPath = "/app/init?platform=standalonewindows64&key=9KnJFxtTvLu2frXv"
+// appInitHeaders are the headers the game client sends; the endpoint requires
+// them to return the build settings.
+var appInitHeaders = map[string]string{
+	"game_net":         "Unity",
+	"play_platform":    "Unity",
+	"game_net_user_id": "",
+}
 
-// BuildType identifies which build of an environment is being processed.
+// BuildType identifies which build of a platform is being processed.
 type BuildType string
 
 const (
@@ -24,15 +28,25 @@ const (
 	Launcher BuildType = "Launcher"
 )
 
-// Environment is a single RotMG AppEngine deployment.
-type Environment struct {
-	Name string
-	URL  string
+// Platform is a downloadable client platform. The Windows and macOS builds are
+// served from different domains and platform query parameters, and yield
+// different BuildIds (and launcher installer formats), so each is watched
+// independently.
+type Platform struct {
+	Name    string // "windows", "macos"
+	InitURL string // full /app/init URL incl. key + platform query params
 }
 
-// Environments lists every environment the extractor polls, in order.
-var Environments = []Environment{
-	{Name: "Production", URL: "https://www.realmofthemadgod.com"},
+// Platforms are the known platforms, keyed by config name.
+var Platforms = map[string]Platform{
+	"windows": {
+		Name:    "windows",
+		InitURL: "https://realmofthemadgodhrd.appspot.com/app/init?key=9KnJFxtTvLu2frXv&platform=standalonewindows64",
+	},
+	"macos": {
+		Name:    "macos",
+		InitURL: "https://www.realmofthemadgod.com/app/init?platform=standaloneosxuniversal&key=9KnJFxtTvLu2frXv",
+	},
 }
 
 // BuildInfo describes a single downloadable build.
@@ -80,13 +94,16 @@ type appSettingsXML struct {
 	LauncherBuildCDN  string   `xml:"LauncherBuildCDN"`
 }
 
-// FetchAppSettings retrieves and parses the app settings for an environment.
-func FetchAppSettings(ctx context.Context, env Environment) (AppSettings, error) {
-	url := env.URL + appInitPath
+// FetchAppSettings retrieves and parses the app settings for a platform.
+func FetchAppSettings(ctx context.Context, p Platform) (AppSettings, error) {
+	url := p.InitURL
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
 		return AppSettings{}, fmt.Errorf("building request: %w", err)
+	}
+	for k, v := range appInitHeaders {
+		req.Header.Set(k, v)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
