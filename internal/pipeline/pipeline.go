@@ -11,12 +11,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
+	"rotmg-extractor/internal/builddiff"
 	"rotmg-extractor/internal/extract"
 	"rotmg-extractor/internal/fsutil"
+	"rotmg-extractor/internal/gamediff"
 	"rotmg-extractor/internal/localsrc"
 	"rotmg-extractor/internal/logx"
+	"rotmg-extractor/internal/mergexml"
+	"rotmg-extractor/internal/notify"
 	"rotmg-extractor/internal/paths"
 	"rotmg-extractor/internal/rotmg"
 )
@@ -37,6 +43,8 @@ type Pipeline struct {
 	Extractor Extractor
 	// VersionOverride is used as the Exalt version when it can't be detected.
 	VersionOverride string
+	// Notifier announces new builds. May be nil to disable notifications.
+	Notifier notify.Notifier
 }
 
 // New constructs a Pipeline. Set Extractor and VersionOverride on the result as
@@ -186,14 +194,20 @@ func (p *Pipeline) RunLocal(ctx context.Context, envName string, build localsrc.
 		}
 	}
 
-	if err := p.extractLocalBuild(ctx, build, workDir); err != nil {
+	version, err := p.extractLocalBuild(ctx, build, workDir)
+	if err != nil {
 		return err
 	}
 
-	// Mark this build as processed so subsequent runs skip it.
-	if err := p.markProcessed(build.Hash, publishDir); err != nil {
+	// Publish the output (diff vs. previous, archive, refresh current). This
+	// also persists build_hash.txt into publish/current, which drives the
+	// new-build check on subsequent runs.
+	fileDiff, gameSummary, err := p.publishBuild(workDir, publishDir, version, build.Hash)
+	if err != nil {
 		return err
 	}
+
+	p.sendNotification(ctx, envName, buildType, version, build.Hash, fileDiff, gameSummary)
 
 	p.Log.Info("Done %s %s", envName, buildType)
 	return nil
@@ -213,11 +227,6 @@ func (p *Pipeline) isNewBuild(hash, publishDir string) bool {
 		return true // no marker yet (or unreadable) => treat as new
 	}
 	return strings.TrimSpace(string(data)) != hash
-}
-
-// markProcessed persists the build identity after a successful extraction.
-func (p *Pipeline) markProcessed(hash, publishDir string) error {
-	return writeFile(processedHashFile(publishDir), hash)
 }
 
 // collectLocalBuild copies the installed game files into the build files dir so
@@ -253,16 +262,17 @@ func (p *Pipeline) collectLocalBuild(build localsrc.Build, filesDir string) erro
 	return nil
 }
 
-// extractLocalBuild extracts data straight from the source build. Currently:
-// the Exalt version (best-effort) and Unity assets via the configured backend.
-func (p *Pipeline) extractLocalBuild(ctx context.Context, build localsrc.Build, workDir string) error {
+// extractLocalBuild extracts data straight from the source build (Exalt version
+// plus Unity assets via the configured backend) and returns the resolved
+// version string.
+func (p *Pipeline) extractLocalBuild(ctx context.Context, build localsrc.Build, workDir string) (string, error) {
 	p.Log.Info("Extracting build...")
 	p.Log.Indent()
 	defer p.Log.Dedent()
 
 	version, err := extract.ExaltVersion(build.Metadata)
 	if err != nil {
-		return fmt.Errorf("extracting exalt version: %w", err)
+		return "", fmt.Errorf("extracting exalt version: %w", err)
 	}
 	switch {
 	case version != "":
@@ -274,26 +284,136 @@ func (p *Pipeline) extractLocalBuild(ctx context.Context, build localsrc.Build, 
 		p.Log.Warn("Could not determine Exalt version - leaving blank")
 	}
 	if err := writeFile(filepath.Join(workDir, "exalt_version.txt"), version); err != nil {
-		return err
+		return "", err
 	}
 
 	// Extract Unity assets using the configured backend, reading from the source
 	// Data directory directly (no copy required).
+	extractedDir := filepath.Join(workDir, "extracted_assets")
 	if p.Extractor != nil && p.Extractor.Available() {
-		extractedDir := filepath.Join(workDir, "extracted_assets")
 		p.Log.Info("Extracting Unity assets (%s backend)...", p.Extractor.Name())
 		p.Log.Indent()
 		err := p.Extractor.Extract(ctx, build.DataDir, extractedDir)
 		p.Log.Dedent()
 		if err != nil {
-			return fmt.Errorf("asset extraction: %w", err)
+			return "", fmt.Errorf("asset extraction: %w", err)
+		}
+
+		// Consolidate the extracted XML into object/ground/misc files.
+		if err := mergexml.Merge(p.Log, extractedDir, filepath.Join(workDir, "merged")); err != nil {
+			return "", fmt.Errorf("merging xml: %w", err)
 		}
 	} else {
 		p.Log.Warn("No asset extractor available - skipping Unity asset extraction")
 	}
 
 	p.Log.Warn("il2cpp dump not yet implemented (pending Il2CppInspector integration)")
-	return nil
+	return version, nil
+}
+
+// publishBuild diffs the new build against the currently published one, writes a
+// changelog, archives the work output to a versioned directory, and refreshes
+// publish/current. It returns the diffs for notification.
+func (p *Pipeline) publishBuild(workDir, publishDir, version, hash string) (builddiff.Diff, gamediff.Summary, error) {
+	p.Log.Info("Publishing build...")
+	p.Log.Indent()
+	defer p.Log.Dedent()
+
+	now := time.Now()
+	if err := writeFile(filepath.Join(workDir, "timestamp.txt"), strconv.FormatInt(now.Unix(), 10)); err != nil {
+		return builddiff.Diff{}, gamediff.Summary{}, err
+	}
+
+	currentDir := filepath.Join(publishDir, "current")
+
+	// Diff against the previous build before it is overwritten.
+	var fileDiff builddiff.Diff
+	var gameSummary gamediff.Summary
+	if fsutil.Exists(currentDir) {
+		var err error
+		fileDiff, err = builddiff.Compare(
+			filepath.Join(currentDir, "extracted_assets"),
+			filepath.Join(workDir, "extracted_assets"),
+		)
+		if err != nil {
+			return builddiff.Diff{}, gamediff.Summary{}, fmt.Errorf("file diff: %w", err)
+		}
+		gameSummary, err = gamediff.Compare(
+			filepath.Join(currentDir, "merged"),
+			filepath.Join(workDir, "merged"),
+		)
+		if err != nil {
+			return builddiff.Diff{}, gamediff.Summary{}, fmt.Errorf("game diff: %w", err)
+		}
+		p.logDiff(fileDiff, gameSummary)
+	} else {
+		p.Log.Info("No previously published build - skipping diff")
+	}
+
+	// Write the changelog into the work dir so it is archived with the build.
+	changelog := gameSummary.Markdown(version, hash, now.Format("2006-01-02 15:04:05"))
+	if err := writeFile(filepath.Join(workDir, "changelog.md"), changelog); err != nil {
+		return builddiff.Diff{}, gamediff.Summary{}, err
+	}
+
+	// Archive to a versioned directory (kept indefinitely).
+	versionDir := filepath.Join(publishDir, versionLabel(version, hash))
+	if err := replaceDir(workDir, versionDir); err != nil {
+		return builddiff.Diff{}, gamediff.Summary{}, fmt.Errorf("archiving build: %w", err)
+	}
+	p.Log.Info("Archived build to %s", versionDir)
+
+	// Refresh publish/current.
+	if err := replaceDir(workDir, currentDir); err != nil {
+		return builddiff.Diff{}, gamediff.Summary{}, fmt.Errorf("updating current: %w", err)
+	}
+	p.Log.Info("Updated %s", currentDir)
+
+	return fileDiff, gameSummary, nil
+}
+
+func (p *Pipeline) logDiff(d builddiff.Diff, s gamediff.Summary) {
+	p.Log.Info("Files: +%d -%d ~%d  Lines: +%d -%d",
+		d.NewFiles, d.DelFiles, d.ChangedFiles, d.AddedLines, d.RemovedLines)
+	oa, or, oc := s.Objects.Counts()
+	ga, gr, gc := s.Ground.Counts()
+	p.Log.Info("Objects: +%d -%d ~%d   Ground: +%d -%d ~%d", oa, or, oc, ga, gr, gc)
+}
+
+// sendNotification builds and dispatches a new-build notification, logging but
+// not failing on errors.
+func (p *Pipeline) sendNotification(ctx context.Context, env, buildType, version, hash string, d builddiff.Diff, s gamediff.Summary) {
+	if p.Notifier == nil {
+		return
+	}
+	oa, or, oc := s.Objects.Counts()
+	ga, gr, gc := s.Ground.Counts()
+	n := notify.Notification{
+		Env: env, BuildType: buildType, Version: version, Hash: hash,
+		NewFiles: d.NewFiles, DelFiles: d.DelFiles,
+		AddedLines: d.AddedLines, RemovedLines: d.RemovedLines,
+		ObjAdded: oa, ObjRemoved: or, ObjChanged: oc,
+		GndAdded: ga, GndRemoved: gr, GndChanged: gc,
+	}
+	if err := p.Notifier.Notify(ctx, n); err != nil {
+		p.Log.Warn("notification failed: %v", err)
+	}
+}
+
+// versionLabel builds the archive directory name for a build.
+func versionLabel(version, hash string) string {
+	if version == "" {
+		return hash
+	}
+	return strings.ReplaceAll(version, " ", "_") + "-" + hash
+}
+
+// replaceDir copies src over dst, removing any existing dst first.
+func replaceDir(src, dst string) error {
+	if err := os.RemoveAll(dst); err != nil {
+		return err
+	}
+	return fsutil.CopyDir(src, dst)
 }
 
 func writeFile(path, contents string) error {
