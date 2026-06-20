@@ -7,8 +7,15 @@ import (
 	"strings"
 )
 
+// maxObjectSize bounds a single object payload, guarding against a corrupt
+// byteSize (a uint32, up to 4GB) triggering a huge allocation. RotMG TextAssets
+// are a few MB at most.
+const maxObjectSize = 256 << 20 // 256 MiB
+
 // TextAssets reads every TextAsset object out of the file. Object payloads are
 // read by seeking, so the large asset bodies are never all held in memory.
+// Objects whose offset/size fall outside the file (corrupt/truncated input) are
+// skipped rather than allowed to over-allocate or read past EOF.
 func (sf *SerializedFile) TextAssets() ([]TextAsset, error) {
 	f, err := os.Open(sf.path)
 	if err != nil {
@@ -16,12 +23,23 @@ func (sf *SerializedFile) TextAssets() ([]TextAsset, error) {
 	}
 	defer f.Close()
 
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	fileSize := info.Size()
+
 	var assets []TextAsset
 	for _, obj := range sf.objects {
 		if sf.classID(obj.typeIndex) != classIDTextAsset {
 			continue
 		}
-		payload := make([]byte, obj.byteSize)
+		size := int64(obj.byteSize)
+		if size <= 0 || size > maxObjectSize || obj.byteStart < 0 || obj.byteStart+size > fileSize {
+			// Implausible offset/size: skip rather than over-allocate or read past EOF.
+			continue
+		}
+		payload := make([]byte, size)
 		if _, err := f.ReadAt(payload, obj.byteStart); err != nil {
 			return nil, fmt.Errorf("reading TextAsset payload at %d: %w", obj.byteStart, err)
 		}

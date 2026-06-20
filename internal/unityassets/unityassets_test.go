@@ -60,6 +60,33 @@ func TestParseTextAsset(t *testing.T) {
 	}
 }
 
+func TestTextAssetsBoundsCheck(t *testing.T) {
+	// A 100-byte file with objects whose offsets/sizes are out of range — they
+	// must be skipped rather than over-allocating or reading past EOF.
+	dir := t.TempDir()
+	p := filepath.Join(dir, "resources.assets")
+	if err := os.WriteFile(p, make([]byte, 100), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sf := &SerializedFile{
+		path:     p,
+		order:    binary.LittleEndian,
+		classIDs: []int32{classIDTextAsset},
+		objects: []objectInfo{
+			{byteStart: 1000, byteSize: 50, typeIndex: 0},      // beyond EOF
+			{byteStart: 0, byteSize: 0xFFFFFFFF, typeIndex: 0}, // absurd size
+			{byteStart: 90, byteSize: 50, typeIndex: 0},        // overruns EOF
+		},
+	}
+	assets, err := sf.TextAssets()
+	if err != nil {
+		t.Fatalf("TextAssets: %v", err)
+	}
+	if len(assets) != 0 {
+		t.Errorf("expected all out-of-range objects skipped, got %d", len(assets))
+	}
+}
+
 func TestSanitize(t *testing.T) {
 	if got := sanitize("dungeons/realm:boss"); got != "dungeons_realmboss" {
 		t.Errorf("sanitize = %q", got)
