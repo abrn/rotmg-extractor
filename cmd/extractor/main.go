@@ -14,6 +14,7 @@ import (
 	"rotmg-extractor/internal/config"
 	"rotmg-extractor/internal/localsrc"
 	"rotmg-extractor/internal/logx"
+	"rotmg-extractor/internal/notify"
 	"rotmg-extractor/internal/paths"
 	"rotmg-extractor/internal/pipeline"
 	"rotmg-extractor/internal/rotmg"
@@ -42,6 +43,7 @@ func main() {
 	pipe := pipeline.New(log, layout)
 	pipe.VersionOverride = cfg.Build.VersionOverride
 	pipe.Extractor = buildExtractor(cfg, log)
+	pipe.Notifier = buildNotifier(cfg, log)
 	log.Info("Using %q extraction backend", pipe.Extractor.Name())
 
 	// Clear the temp directory from any previous run.
@@ -89,6 +91,16 @@ func buildExtractor(cfg config.Config, log *logx.Logger) pipeline.Extractor {
 	}
 	// Default: the pure-Go native TextAsset extractor (cross-platform, no binary).
 	return &unityassets.Extractor{Log: log}
+}
+
+// buildNotifier constructs the configured notifier, or nil if none is enabled.
+func buildNotifier(cfg config.Config, log *logx.Logger) notify.Notifier {
+	d := cfg.Notify.Discord
+	if d.Enabled && d.WebhookURL != "" {
+		log.Info("Discord notifications enabled")
+		return &notify.Discord{WebhookURL: d.WebhookURL, RoleID: d.RoleID, Log: log}
+	}
+	return nil
 }
 
 // runLocalPass extracts a single build installed on the local system.
