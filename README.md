@@ -131,7 +131,11 @@ GOOS=windows GOARCH=amd64 go build ./...   # cross-compile check
 
 ## Roadmap
 
-- **il2cpp dump** — port the binary dump (original used Il2CppInspector; Unity 6
-  likely needs Cpp2IL).
+- **il2cpp dump** — port the binary dump. See
+  [`docs/il2cpp-reference.md`](docs/il2cpp-reference.md) (original used
+  Il2CppInspector; Unity 6 likely needs Cpp2IL).
 - **Remote download** — revive once the live app-init endpoints are known
   (`source.mode: remote` is stubbed and waiting).
+- **Additional delivery targets** — the original config declared SSH, FTP and
+  Redis pub-sub outputs (never implemented) alongside Discord. Add as
+  `notify`/`publish` targets if needed.
