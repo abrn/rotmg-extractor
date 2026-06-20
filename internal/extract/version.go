@@ -2,27 +2,68 @@
 package extract
 
 import (
+	"bytes"
 	"os"
 	"regexp"
 )
 
-// legacyVersionPattern matches the Exalt version the way the original Python
-// did: a "127.0.0.1" anchor followed by a five-part version (e.g. 1.3.2.0.0).
-// Newer (Unity 6) builds no longer embed the version this way, so this is
-// best-effort and may return "".
-var legacyVersionPattern = regexp.MustCompile(`127\.0\.0\.1[\x00-\x20]*(\d(?:\.\d){4})`)
+// versionAnchor precedes the Exalt version in global-metadata.dat. The version
+// is stored as a const string in the same static class as some "127.0.0.1"
+// const strings, so the anchor reliably locates it.
+var versionAnchor = []byte("127.0.0.1")
 
-// ExaltVersion attempts to read the Exalt version string out of
-// global-metadata.dat. It returns ("", nil) when no version can be found, which
-// is not treated as an error by callers.
-func ExaltVersion(metadataPath string) (string, error) {
-	data, err := os.ReadFile(metadataPath)
-	if err != nil {
-		return "", err
-	}
+// versionPattern matches a five-part version with 1-3 digit components
+// (e.g. 6.11.0.1.0). The original tool used single-digit components, which no
+// longer matches builds like 6.11.x (two-digit minor).
+var versionPattern = regexp.MustCompile(`[0-9]{1,3}(?:\.[0-9]{1,3}){4}`)
 
-	if m := legacyVersionPattern.FindSubmatch(data); m != nil {
-		return string(m[1]), nil
+// anchorWindow is how many bytes after an anchor to search for the version.
+const anchorWindow = 24
+
+// ScanVersion scans each file in turn for the Exalt build version and returns
+// the first one found. Missing files are skipped. Returns ("", nil) when no
+// version is found.
+func ScanVersion(paths ...string) (string, error) {
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return "", err
+		}
+		if v := scanAnchored(data); v != "" {
+			return v, nil
+		}
 	}
 	return "", nil
+}
+
+// scanAnchored finds a version immediately following a "127.0.0.1" anchor.
+func scanAnchored(data []byte) string {
+	from := 0
+	for {
+		idx := bytes.Index(data[from:], versionAnchor)
+		if idx < 0 {
+			return ""
+		}
+		start := from + idx + len(versionAnchor)
+		end := start + anchorWindow
+		if end > len(data) {
+			end = len(data)
+		}
+		if m := versionPattern.Find(data[start:end]); m != nil {
+			return string(m)
+		}
+		from = start
+	}
+}
+
+// ExaltVersion scans a single file (kept for callers that only have the
+// metadata path).
+func ExaltVersion(metadataPath string) (string, error) {
+	return ScanVersion(metadataPath)
 }
