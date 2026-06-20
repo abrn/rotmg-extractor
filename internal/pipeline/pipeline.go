@@ -156,7 +156,7 @@ func (p *Pipeline) outputBuild(ctx context.Context, env rotmg.Environment, bt ro
 //
 // Extraction reads directly from the source install — the build is not copied
 // unless Snapshot is requested — and only proceeds when the build is new.
-func (p *Pipeline) RunLocal(ctx context.Context, envName string, build localsrc.Build, snapshot bool) error {
+func (p *Pipeline) RunLocal(ctx context.Context, envName string, build localsrc.Build, snapshot, copyGameFiles bool) error {
 	const buildType = "Client"
 
 	filesDir := p.Layout.FilesDir(envName, buildType)
@@ -187,7 +187,14 @@ func (p *Pipeline) RunLocal(ctx context.Context, envName string, build localsrc.
 		return err
 	}
 
-	// Optionally snapshot the original build files (off by default).
+	// Copy the native game binaries + metadata into the output (on by default).
+	if copyGameFiles {
+		if err := p.collectGameFiles(build, filepath.Join(workDir, "game_files")); err != nil {
+			return err
+		}
+	}
+
+	// Optionally snapshot the entire Data dir (off by default).
 	if snapshot {
 		if err := p.collectLocalBuild(build, filesDir); err != nil {
 			return err
@@ -262,6 +269,32 @@ func (p *Pipeline) collectLocalBuild(build localsrc.Build, filesDir string) erro
 	return nil
 }
 
+// collectGameFiles copies the native binaries and metadata into destDir so the
+// build's il2cpp artifacts are archived alongside the extracted assets.
+func (p *Pipeline) collectGameFiles(build localsrc.Build, destDir string) error {
+	files := build.NativeFiles()
+	if len(files) == 0 {
+		p.Log.Warn("No native game files found to copy")
+		return nil
+	}
+
+	p.Log.Info("Copying game files (binaries + metadata)...")
+	p.Log.Indent()
+	defer p.Log.Dedent()
+
+	if err := os.RemoveAll(destDir); err != nil {
+		return fmt.Errorf("clearing game_files dir: %w", err)
+	}
+	for _, src := range files {
+		dst := filepath.Join(destDir, filepath.Base(src))
+		p.Log.Info("Copying %s", filepath.Base(src))
+		if err := fsutil.CopyFile(src, dst); err != nil {
+			return fmt.Errorf("copying %s: %w", filepath.Base(src), err)
+		}
+	}
+	return nil
+}
+
 // extractLocalBuild extracts data straight from the source build (Exalt version
 // plus Unity assets via the configured backend) and returns the resolved
 // version string.
@@ -270,16 +303,20 @@ func (p *Pipeline) extractLocalBuild(ctx context.Context, build localsrc.Build, 
 	p.Log.Indent()
 	defer p.Log.Dedent()
 
-	version, err := extract.ExaltVersion(build.Metadata)
+	// Scan the native files (metadata first, then binaries) for the version.
+	version, err := extract.ScanVersion(build.NativeFiles()...)
 	if err != nil {
-		return "", fmt.Errorf("extracting exalt version: %w", err)
+		return "", fmt.Errorf("scanning for exalt version: %w", err)
 	}
 	switch {
 	case version != "":
-		p.Log.Info("Exalt version is %q", version)
+		p.Log.Info("Detected Exalt version %q", version)
+		if p.VersionOverride != "" && p.VersionOverride != version {
+			p.Log.Warn("Configured version override %q differs from detected %q - using detected", p.VersionOverride, version)
+		}
 	case p.VersionOverride != "":
 		version = p.VersionOverride
-		p.Log.Info("Exalt version not auto-detected; using configured override %q", version)
+		p.Log.Info("Exalt version not detected; using configured override %q", version)
 	default:
 		p.Log.Warn("Could not determine Exalt version - leaving blank")
 	}
