@@ -45,6 +45,7 @@ func main() {
 	pipe.FullDownload = cfg.Source.FullDownload
 	pipe.Incremental = cfg.Source.Incremental
 	pipe.KeepBuilds = cfg.Output.KeepBuilds
+	pipe.DecryptMetadata = cfg.Extraction.DecryptMetadata
 	pipe.Extractor = buildExtractor(cfg, log)
 	pipe.Notifier = buildNotifier(cfg, log)
 	log.Info("Using %q extraction backend", pipe.Extractor.Name())

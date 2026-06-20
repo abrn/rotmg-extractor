@@ -45,6 +45,10 @@ type Extraction struct {
 	// Backend is "native" (pure-Go TextAsset parser, no external binary) or
 	// "assetripper" (full asset export via the bundled AssetRipper binary).
 	Backend string `yaml:"backend"`
+	// DecryptMetadata, when true, produces a decrypted global-metadata.dat for
+	// il2cpp dumping. Automatically skipped when the metadata is already valid
+	// (the macOS build ships it decrypted). On by default.
+	DecryptMetadata bool `yaml:"decrypt_metadata"`
 }
 
 // AssetRipper configures the bundled Unity asset extractor.
@@ -130,7 +134,8 @@ func Default() Config {
 			VersionOverride: "", // auto-detected from metadata; set only as a fallback
 		},
 		Extraction: Extraction{
-			Backend: "native",
+			Backend:         "native",
+			DecryptMetadata: true,
 		},
 		AssetRipper: AssetRipper{
 			Dir:    "tools/assetripper",

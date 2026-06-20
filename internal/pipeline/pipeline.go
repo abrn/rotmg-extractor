@@ -25,6 +25,7 @@ import (
 	"rotmg-extractor/internal/localsrc"
 	"rotmg-extractor/internal/logx"
 	"rotmg-extractor/internal/mergexml"
+	"rotmg-extractor/internal/metadata"
 	"rotmg-extractor/internal/notify"
 	"rotmg-extractor/internal/paths"
 	"rotmg-extractor/internal/rotmg"
@@ -57,6 +58,9 @@ type Pipeline struct {
 	// KeepBuilds bounds how many versioned builds to retain per platform/build
 	// type (0 = keep all).
 	KeepBuilds int
+	// DecryptMetadata produces a decrypted global-metadata.dat for il2cpp
+	// dumping (auto-skipped when the metadata is already valid).
+	DecryptMetadata bool
 }
 
 // gameFilesDirName is the subdirectory holding the archived native binaries +
@@ -427,8 +431,47 @@ func (p *Pipeline) extractLocalBuild(ctx context.Context, build localsrc.Build, 
 		p.Log.Warn("No asset extractor available - skipping Unity asset extraction")
 	}
 
+	// Produce a decrypted metadata for il2cpp dumping (skipped if already valid).
+	p.prepareMetadata(build, workDir)
+
 	p.Log.Warn("il2cpp dump not yet implemented (pending Il2CppInspector integration)")
 	return version, nil
+}
+
+// prepareMetadata writes a decrypted global-metadata.dat into the build's
+// game_files directory when the source is obfuscated. The macOS build ships an
+// already-valid metadata, so it is detected and left as-is. Failures are
+// non-fatal: a stale decryption key only blocks the (future) il2cpp dump.
+func (p *Pipeline) prepareMetadata(build localsrc.Build, workDir string) {
+	if !p.DecryptMetadata || build.Metadata == "" {
+		return
+	}
+	enc, err := os.ReadFile(build.Metadata)
+	if err != nil {
+		p.Log.Warn("reading metadata: %v", err)
+		return
+	}
+	if metadata.IsDecrypted(enc) {
+		p.Log.Info("global-metadata.dat is already decrypted - no action needed")
+		return
+	}
+
+	p.Log.Info("Decrypting global-metadata.dat...")
+	dec, err := metadata.Decrypt(enc, metadata.DefaultVersion)
+	if err != nil {
+		p.Log.Warn("metadata decryption failed (decryption constants may be stale for this build): %v", err)
+		return
+	}
+	dst := filepath.Join(workDir, gameFilesDirName, "global-metadata.decrypted.dat")
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		p.Log.Warn("writing decrypted metadata: %v", err)
+		return
+	}
+	if err := os.WriteFile(dst, dec, 0o644); err != nil {
+		p.Log.Warn("writing decrypted metadata: %v", err)
+		return
+	}
+	p.Log.Success("Decrypted global-metadata.dat (%d bytes) -> %s", len(dec), filepath.Base(dst))
 }
 
 // publishBuild diffs the new build against the currently published one, writes a

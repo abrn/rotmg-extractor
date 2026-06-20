@@ -4,7 +4,7 @@
 source:
   # "local"  extracts a build already installed on disk.
   # "remote" downloads builds from the live CDN.
-  mode: local
+  mode: remote
   # Remote mode: which platforms to watch/download. Defaults to Windows only;
   # add "macos" to also watch the macOS build.
   #   platforms: [windows, macos]
@@ -39,6 +39,10 @@ extraction:
   # "assetripper" full asset export (textures, sprites, meshes, ...) via the
   #               bundled AssetRipper binary configured below.
   backend: native
+  # Produce a decrypted global-metadata.dat for il2cpp dumping. Automatically
+  # skipped when the metadata is already valid (the macOS build ships it
+  # decrypted). On by default.
+  decrypt_metadata: true
 
 assetripper:
   # Directory holding the AssetRipper binary (relative to the working dir). The
