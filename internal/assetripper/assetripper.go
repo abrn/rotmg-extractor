@@ -12,6 +12,8 @@ package assetripper
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -83,14 +85,25 @@ func (c *Client) Export(ctx context.Context, inputDir, outputDir string, mode Ex
 		return fmt.Errorf("AssetRipper binary not found at %q", c.BinPath)
 	}
 
-	base := "http://127.0.0.1:" + strconv.Itoa(c.Port)
+	// Pick a free port when none is configured, avoiding collisions with a
+	// fixed port across runs/instances.
+	port := c.Port
+	if port == 0 {
+		p, err := freePort()
+		if err != nil {
+			return fmt.Errorf("finding free port: %w", err)
+		}
+		port = p
+	}
+
+	base := "http://127.0.0.1:" + strconv.Itoa(port)
 	logPath := filepath.Join(filepath.Dir(outputDir), "assetripper.log")
 
 	// Launch headless. cmd.Dir is set to the binary's directory so its sidecar
 	// libraries (e.g. libcapstone.dylib) resolve.
 	cmd := exec.CommandContext(ctx, c.BinPath,
 		"--headless",
-		"--port", strconv.Itoa(c.Port),
+		"--port", strconv.Itoa(port),
 		"--log-path", logPath,
 	)
 	cmd.Dir = filepath.Dir(c.BinPath)
@@ -122,8 +135,55 @@ func (c *Client) Export(ctx context.Context, inputDir, outputDir string, mode Ex
 		return fmt.Errorf("exporting: %w", err)
 	}
 
+	// AssetRipper returns HTTP 200 with an in-page error banner on failure (e.g.
+	// a bad input path), so a 2xx/3xx is not proof of success. Verify the export
+	// actually produced files; if not, surface its log.
+	if dirIsEmpty(outputDir) {
+		return fmt.Errorf("AssetRipper produced no output; log tail:\n%s", tailFile(logPath, 15))
+	}
+
 	c.Log.Info("AssetRipper export finished")
 	return nil
+}
+
+// freePort returns an available TCP port on the loopback interface.
+func freePort() (int, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+// dirIsEmpty reports whether dir contains no regular files (missing dir counts
+// as empty).
+func dirIsEmpty(dir string) bool {
+	empty := true
+	filepath.WalkDir(dir, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			empty = false
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return empty
+}
+
+// tailFile returns the last n lines of a file (best effort).
+func tailFile(path string, n int) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "(no log)"
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
 }
 
 // waitReady polls the server root until it responds or the timeout elapses.
