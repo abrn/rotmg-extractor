@@ -19,6 +19,7 @@ type Level int
 const (
 	LevelDebug Level = iota
 	LevelInfo
+	LevelSuccess
 	LevelWarn
 	LevelError
 )
@@ -29,6 +30,8 @@ func (l Level) String() string {
 		return "DEBUG"
 	case LevelInfo:
 		return "INFO"
+	case LevelSuccess:
+		return "SUCCESS"
 	case LevelWarn:
 		return "WARNING"
 	case LevelError:
@@ -43,6 +46,8 @@ func ParseLevel(s string) Level {
 	switch strings.ToLower(strings.TrimSpace(s)) {
 	case "debug":
 		return LevelDebug
+	case "success":
+		return LevelSuccess
 	case "warn", "warning":
 		return LevelWarn
 	case "error":
@@ -136,10 +141,11 @@ func (l *Logger) log(level Level, msg string) {
 	}
 }
 
-func (l *Logger) Debug(format string, a ...any) { l.log(LevelDebug, fmt.Sprintf(format, a...)) }
-func (l *Logger) Info(format string, a ...any)  { l.log(LevelInfo, fmt.Sprintf(format, a...)) }
-func (l *Logger) Warn(format string, a ...any)  { l.log(LevelWarn, fmt.Sprintf(format, a...)) }
-func (l *Logger) Error(format string, a ...any) { l.log(LevelError, fmt.Sprintf(format, a...)) }
+func (l *Logger) Debug(format string, a ...any)   { l.log(LevelDebug, fmt.Sprintf(format, a...)) }
+func (l *Logger) Info(format string, a ...any)    { l.log(LevelInfo, fmt.Sprintf(format, a...)) }
+func (l *Logger) Success(format string, a ...any) { l.log(LevelSuccess, fmt.Sprintf(format, a...)) }
+func (l *Logger) Warn(format string, a ...any)    { l.log(LevelWarn, fmt.Sprintf(format, a...)) }
+func (l *Logger) Error(format string, a ...any)   { l.log(LevelError, fmt.Sprintf(format, a...)) }
 
 // PrintTime logs the current local time, matching the original print_time().
 func (l *Logger) PrintTime() {
@@ -150,6 +156,8 @@ func colorize(level Level, s string) string {
 	const reset = "\033[0m"
 	var code string
 	switch level {
+	case LevelSuccess:
+		code = "\033[32m" // green
 	case LevelDebug:
 		code = "\033[90m" // grey
 	case LevelWarn:
