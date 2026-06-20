@@ -11,11 +11,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"rotmg-extractor/internal/builddiff"
+	"rotmg-extractor/internal/download"
 	"rotmg-extractor/internal/extract"
 	"rotmg-extractor/internal/fsutil"
 	"rotmg-extractor/internal/gamediff"
@@ -45,6 +48,38 @@ type Pipeline struct {
 	VersionOverride string
 	// Notifier announces new builds. May be nil to disable notifications.
 	Notifier notify.Notifier
+	// FullDownload downloads every manifest file instead of just the essential
+	// ones (binaries, metadata, Unity SerializedFiles).
+	FullDownload bool
+	// Incremental keeps build files persistently and skips re-downloading
+	// unchanged ones. When false, downloads go to a transient temp dir.
+	Incremental bool
+	// KeepBuilds bounds how many versioned builds to retain per platform/build
+	// type (0 = keep all).
+	KeepBuilds int
+}
+
+// gameFilesDirName is the subdirectory holding the archived native binaries +
+// metadata. It is excluded from publish/current to avoid duplicating it.
+const gameFilesDirName = "game_files"
+
+// serializedFilePattern matches the Unity SerializedFiles the native extractor
+// reads (the .assets, not the .resS/.resource streaming blobs).
+var serializedFilePattern = regexp.MustCompile(`^(globalgamemanagers(\.assets)?|level\d+|resources\.assets|sharedassets\d+\.assets)$`)
+
+// essentialFiles reports whether a manifest path is needed for native
+// extraction, the build identity, and the archived binaries — i.e. the il2cpp
+// metadata, GameAssembly/UnityPlayer, and the Unity SerializedFiles. This skips
+// the large texture/audio streaming data (.resS/.resource) and other files.
+func essentialFiles(path string) bool {
+	base := filepath.Base(filepath.FromSlash(path))
+	switch base {
+	case "global-metadata.dat",
+		"GameAssembly.dll", "GameAssembly.dylib", "GameAssembly.so",
+		"UnityPlayer.dll", "UnityPlayer.dylib", "UnityPlayer.so":
+		return true
+	}
+	return serializedFilePattern.MatchString(base)
 }
 
 // New constructs a Pipeline. Set Extractor and VersionOverride on the result as
@@ -56,12 +91,11 @@ func New(log *logx.Logger, layout paths.Layout) *Pipeline {
 // Run executes the full extract process for a single environment + build type.
 // It returns nil whether or not a new build was found; an error is returned
 // only for unexpected failures.
-func (p *Pipeline) Run(ctx context.Context, env rotmg.Environment, settings rotmg.AppSettings, bt rotmg.BuildType) error {
+func (p *Pipeline) Run(ctx context.Context, platform rotmg.Platform, settings rotmg.AppSettings, bt rotmg.BuildType) error {
 	build := settings.Build(bt)
 
-	filesDir := p.Layout.FilesDir(env.Name, string(bt))
-	workDir := p.Layout.WorkDir(env.Name, string(bt))
-	publishDir := p.Layout.PublishDir(env.Name, string(bt))
+	workDir := p.Layout.WorkDir(platform.Name, string(bt))
+	publishDir := p.Layout.PublishDir(platform.Name, string(bt))
 
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
 		return fmt.Errorf("creating work dir: %w", err)
@@ -74,11 +108,13 @@ func (p *Pipeline) Run(ctx context.Context, env rotmg.Environment, settings rotm
 	defer p.Log.SetFile("")
 
 	p.Log.PrintTime()
-	p.Log.Info("Starting %s %s", env.Name, bt)
+	p.Log.Info("Starting %s %s", platform.Name, bt)
 	p.Log.Indent()
 	defer p.Log.Dedent()
 
-	isNew, err := p.preBuildSetup(env, bt, build, workDir, publishDir)
+	// The client and launcher hashes are checked independently (separate
+	// publish dirs), so only the build that actually changed is downloaded.
+	isNew, err := p.preBuildSetup(platform.Name, bt, build, workDir, publishDir)
 	if err != nil {
 		return err
 	}
@@ -86,27 +122,93 @@ func (p *Pipeline) Run(ctx context.Context, env rotmg.Environment, settings rotm
 		return nil
 	}
 
-	// --- Stages 2-5: implemented incrementally ---
-	if err := p.downloadBuild(ctx, env, bt, build, filesDir, workDir); err != nil {
-		return err
+	p.Log.Info("Build URL is %s", build.BuildURL())
+	if bt == rotmg.Launcher {
+		err = p.runRemoteLauncher(ctx, platform.Name, build, workDir, publishDir)
+	} else {
+		err = p.runRemoteClient(ctx, platform.Name, build, workDir, publishDir)
 	}
-	if err := p.extractBuild(ctx, bt, filesDir, workDir); err != nil {
-		return err
-	}
-	if err := p.outputBuild(ctx, env, bt, build, workDir, publishDir); err != nil {
+	if err != nil {
 		return err
 	}
 
-	p.Log.Info("Done %s %s", env.Name, bt)
+	p.Log.Info("Done %s %s", platform.Name, bt)
+	return nil
+}
+
+// runRemoteClient downloads the client build from the CDN, then runs the same
+// extract/merge/publish path as local mode against the downloaded files.
+func (p *Pipeline) runRemoteClient(ctx context.Context, platformName string, build rotmg.BuildInfo, workDir, publishDir string) error {
+	// By default download only the essential files into a transient temp dir.
+	// In incremental mode, download into a persistent dir and skip files whose
+	// checksum is unchanged since the last build (pruning stale ones).
+	opts := download.Options{}
+	if !p.FullDownload {
+		opts.Filter = essentialFiles
+	}
+
+	var dir string
+	if p.Incremental {
+		dir = p.Layout.BuildFilesDir(platformName, string(rotmg.Client))
+		opts.Incremental = true
+	} else {
+		dir = p.Layout.FilesDir(platformName, string(rotmg.Client))
+		if err := os.RemoveAll(dir); err != nil {
+			return fmt.Errorf("clearing files dir: %w", err)
+		}
+		// Non-incremental: the raw download is only needed for this run, so free
+		// it once we're done extracting.
+		defer os.RemoveAll(dir)
+	}
+
+	if _, err := download.ClientFiles(ctx, p.Log, build.BuildURL(), dir, opts); err != nil {
+		return err
+	}
+
+	located, err := localsrc.Locate(dir)
+	if err != nil {
+		return fmt.Errorf("locating downloaded build: %w", err)
+	}
+
+	if err := p.collectGameFiles(located, filepath.Join(workDir, gameFilesDirName)); err != nil {
+		return err
+	}
+
+	version, err := p.extractLocalBuild(ctx, located, workDir)
+	if err != nil {
+		return err
+	}
+
+	fileDiff, gameSummary, err := p.publishBuild(workDir, publishDir, version, build.BuildHash)
+	if err != nil {
+		return err
+	}
+	p.sendNotification(ctx, platformName, string(rotmg.Client), version, build.BuildHash, fileDiff, gameSummary)
+	return nil
+}
+
+// runRemoteLauncher downloads the launcher installer and publishes it. The
+// installer is not unpacked (that needs an external unpacker; see roadmap).
+func (p *Pipeline) runRemoteLauncher(ctx context.Context, platformName string, build rotmg.BuildInfo, workDir, publishDir string) error {
+	if _, err := download.LauncherInstaller(ctx, p.Log, build.BuildURL(), build.BuildID, filepath.Join(workDir, gameFilesDirName)); err != nil {
+		return err
+	}
+	p.Log.Warn("Launcher unpacking not implemented - publishing the raw installer")
+
+	fileDiff, gameSummary, err := p.publishBuild(workDir, publishDir, build.BuildVersion, build.BuildHash)
+	if err != nil {
+		return err
+	}
+	p.sendNotification(ctx, platformName, string(rotmg.Launcher), build.BuildVersion, build.BuildHash, fileDiff, gameSummary)
 	return nil
 }
 
 // preBuildSetup asserts a build exists and is newer than the published one,
 // then records the new hash/version into the work dir. It returns true when the
 // build is new and processing should continue.
-func (p *Pipeline) preBuildSetup(env rotmg.Environment, bt rotmg.BuildType, build rotmg.BuildInfo, workDir, publishDir string) (bool, error) {
+func (p *Pipeline) preBuildSetup(platformName string, bt rotmg.BuildType, build rotmg.BuildInfo, workDir, publishDir string) (bool, error) {
 	if !build.Available() {
-		p.Log.Warn("%s does not have a %s build available, aborting.", env.Name, bt)
+		p.Log.Warn("%s does not have a %s build available, aborting.", platformName, bt)
 		return false, nil
 	}
 
@@ -129,25 +231,6 @@ func (p *Pipeline) preBuildSetup(env rotmg.Environment, bt rotmg.BuildType, buil
 		return false, err
 	}
 	return true, nil
-}
-
-// downloadBuild downloads (and unpacks/archives) the build files. Stage 2.
-func (p *Pipeline) downloadBuild(ctx context.Context, env rotmg.Environment, bt rotmg.BuildType, build rotmg.BuildInfo, filesDir, workDir string) error {
-	p.Log.Info("Build URL is %s", build.BuildURL())
-	p.Log.Warn("download not yet implemented (Stage 2)")
-	return nil
-}
-
-// extractBuild extracts Unity assets and dumps il2cpp. Stages 3 & 5.
-func (p *Pipeline) extractBuild(ctx context.Context, bt rotmg.BuildType, filesDir, workDir string) error {
-	p.Log.Warn("extraction not yet implemented (Stages 3 & 5)")
-	return nil
-}
-
-// outputBuild publishes the build and sends notifications. Stage 4.
-func (p *Pipeline) outputBuild(ctx context.Context, env rotmg.Environment, bt rotmg.BuildType, build rotmg.BuildInfo, workDir, publishDir string) error {
-	p.Log.Warn("publishing not yet implemented (Stage 4)")
-	return nil
 }
 
 // RunLocal executes the extract process against a build already installed on
@@ -189,7 +272,7 @@ func (p *Pipeline) RunLocal(ctx context.Context, envName string, build localsrc.
 
 	// Copy the native game binaries + metadata into the output (on by default).
 	if copyGameFiles {
-		if err := p.collectGameFiles(build, filepath.Join(workDir, "game_files")); err != nil {
+		if err := p.collectGameFiles(build, filepath.Join(workDir, gameFilesDirName)); err != nil {
 			return err
 		}
 	}
@@ -393,20 +476,70 @@ func (p *Pipeline) publishBuild(workDir, publishDir, version, hash string) (buil
 		return builddiff.Diff{}, gamediff.Summary{}, err
 	}
 
-	// Archive to a versioned directory (kept indefinitely).
+	// Archive the full build (incl. the large game_files binaries) to a
+	// versioned directory.
 	versionDir := filepath.Join(publishDir, versionLabel(version, hash))
-	if err := replaceDir(workDir, versionDir); err != nil {
+	if err := os.RemoveAll(versionDir); err != nil {
+		return builddiff.Diff{}, gamediff.Summary{}, err
+	}
+	if err := fsutil.CopyDir(workDir, versionDir); err != nil {
 		return builddiff.Diff{}, gamediff.Summary{}, fmt.Errorf("archiving build: %w", err)
 	}
 	p.Log.Success("Archived build to %s", versionDir)
 
-	// Refresh publish/current.
-	if err := replaceDir(workDir, currentDir); err != nil {
+	// Refresh publish/current, excluding game_files: it's only used for diffing
+	// and new-build detection, so the binaries are kept solely in the versioned
+	// archive (avoids duplicating ~130 MB per build).
+	if err := os.RemoveAll(currentDir); err != nil {
+		return builddiff.Diff{}, gamediff.Summary{}, err
+	}
+	if err := fsutil.CopyDirExcept(workDir, currentDir, map[string]bool{gameFilesDirName: true}); err != nil {
 		return builddiff.Diff{}, gamediff.Summary{}, fmt.Errorf("updating current: %w", err)
 	}
 	p.Log.Info("Updated %s", currentDir)
 
+	// Prune old versioned builds beyond the retention limit.
+	p.pruneOldBuilds(publishDir)
+
 	return fileDiff, gameSummary, nil
+}
+
+// pruneOldBuilds removes the oldest versioned build directories beyond
+// KeepBuilds (0 = keep all). The "current" dir is never pruned.
+func (p *Pipeline) pruneOldBuilds(publishDir string) {
+	if p.KeepBuilds <= 0 {
+		return
+	}
+	entries, err := os.ReadDir(publishDir)
+	if err != nil {
+		return
+	}
+
+	type buildDir struct {
+		path string
+		mod  time.Time
+	}
+	var builds []buildDir
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == "current" {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		builds = append(builds, buildDir{filepath.Join(publishDir, e.Name()), info.ModTime()})
+	}
+	if len(builds) <= p.KeepBuilds {
+		return
+	}
+
+	sort.Slice(builds, func(i, j int) bool { return builds[i].mod.After(builds[j].mod) })
+	for _, b := range builds[p.KeepBuilds:] {
+		if err := os.RemoveAll(b.path); err == nil {
+			p.Log.Info("Pruned old build %s", filepath.Base(b.path))
+		}
+	}
 }
 
 func (p *Pipeline) logDiff(d builddiff.Diff, s gamediff.Summary) {
@@ -443,14 +576,6 @@ func versionLabel(version, hash string) string {
 		return hash
 	}
 	return strings.ReplaceAll(version, " ", "_") + "-" + hash
-}
-
-// replaceDir copies src over dst, removing any existing dst first.
-func replaceDir(src, dst string) error {
-	if err := os.RemoveAll(dst); err != nil {
-		return err
-	}
-	return fsutil.CopyDir(src, dst)
 }
 
 func writeFile(path, contents string) error {
