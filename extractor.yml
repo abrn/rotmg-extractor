@@ -1,0 +1,54 @@
+# RotMG Extractor configuration (Go).
+# All values shown are the defaults; the file may be omitted entirely.
+
+source:
+  # "local" extracts a build already installed on disk.
+  # "remote" (downloading from live servers) is shelved until the endpoints
+  # are re-discovered.
+  mode: local
+  # The installed build root: an .app bundle on macOS, or the game folder
+  # containing RotMGExalt_Data on Windows/Linux. Leave blank to auto-discover
+  # from OS-specific default install locations.
+  local_path: ""
+  # Copy the full build files into the output tree as an archive (slow, 100s of
+  # MB). Off by default: extraction reads directly from the source install.
+  snapshot: false
+
+build:
+  # Exalt version to record when it can't be auto-detected from the metadata
+  # (Unity 6 builds no longer embed it where the old extractor looked).
+  version_override: "6.11.0.0.0"
+
+extraction:
+  # "native"      pure-Go TextAsset parser, no external binary (game XML/JSON).
+  # "assetripper" full asset export (textures, sprites, meshes, ...) via the
+  #               bundled AssetRipper binary configured below.
+  backend: native
+
+assetripper:
+  # Directory holding the AssetRipper binary (relative to the working dir). The
+  # OS-specific executable name (AssetRipper.GUI.Free or .exe) is resolved
+  # within it. Only used when extraction.backend is "assetripper". See
+  # tools/assetripper/README.md to obtain the right build for your platform.
+  dir: tools/assetripper
+  # Local port AssetRipper hosts its API on.
+  port: 50111
+  # "primary" exports decoded assets only (fast); "project" exports a full
+  # reconstructed Unity project.
+  export: primary
+
+poll:
+  # Minutes between polling passes that check for new builds.
+  client_check_delay_minutes: 5
+  launcher_check_delay_minutes: 30
+
+output:
+  # Root directory for downloaded, work-in-progress and published files.
+  dir: ./output
+
+logging:
+  # debug | info | warn | error
+  level: debug
+  console: true
+  colors: true
+  file: true
