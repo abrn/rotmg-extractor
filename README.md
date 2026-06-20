@@ -1,106 +1,191 @@
 # RotMG Resource Extractor (Go)
 
-Automatically extracts and publishes RotMG (Realm of the Mad God) build assets,
-and announces new builds. This is a Go rewrite of the original Python tool.
+Automatically watches RotMG (Realm of the Mad God) builds, extracts Unity game
+data, publishes versioned output, writes changelogs, and can optionally run
+IL2CPP dump tools against `GameAssembly` + `global-metadata.dat`.
 
-It watches for new builds, extracts the Unity game data (objects, ground, items,
-projectiles, …), consolidates it into combined XML files, diffs each build
-against the last, writes a changelog, and can post a Discord notification.
+This is a Go rewrite of the original Python extractor.
 
-> **Status:** local extraction is fully working. Live/remote downloading is
-> shelved until the game's app-init endpoints are re-discovered (they now 404).
-> il2cpp dumping is not yet ported. See [Roadmap](#roadmap).
+> **Status:** local extraction and remote client/launcher downloading are
+> implemented. The native Unity TextAsset path is the default. Cpp2IL dumping is
+> wired in behind `il2cpp.enabled`, but successful dumps still depend on a
+> compatible Cpp2IL build and current RotMG metadata decryption constants.
 
----
+## Usage
 
-## Quick start
+Build once, then run either a single pass or the polling loop:
 
 ```sh
 go build -o extractor ./cmd/extractor
-./extractor -once          # run a single pass
-./extractor                # run continuously, polling on an interval
+./extractor -once
+./extractor
 ```
 
-With no `extractor.yml` present, sensible defaults are used (local mode, native
-backend, auto-discovered install). Flags:
+Run directly during development:
+
+```sh
+go run cmd/extractor/main.go -once
+```
+
+Useful flags:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-config` | `extractor.yml` | Path to the config file (optional) |
-| `-once` | `false` | Run a single pass instead of looping |
+| `-config` | `extractor.yml` | Path to the YAML config file. Missing file is allowed; built-in defaults are used. |
+| `-once` | `false` | Run one pass and exit instead of polling forever. |
+| `-il2cpp-only` | `false` | Run only the configured IL2CPP dump against an existing client build. |
+| `-il2cpp-env` | `""` | Platform/env for `-il2cpp-only`; defaults to local `Production` or the first remote platform. |
+| `-il2cpp-format` | `""` | Comma-separated Cpp2IL format override for `-il2cpp-only`, e.g. `dummydll` or `dll_il_recovery`. |
 
-## How it works
+### Common Commands
 
-For the installed build, each pass:
+Remote Windows client/launcher pass:
 
-1. **Discovers** the install (`internal/localsrc`) — macOS `.app` bundle or a
-   Windows/Linux folder containing `*_Data`.
-2. **Detects new builds** via a content hash of `global-metadata.dat`, compared
-   against the last published build. Unchanged → nothing happens.
-3. **Extracts** Unity TextAssets (`internal/unityassets`, the default native
-   backend) or all assets (`internal/assetripper`).
-4. **Merges** the many XML files into `object.xml` / `ground.xml` / `misc.xml`
-   by top-level tag (`internal/mergexml`).
-5. **Diffs** vs. the previous build — coarse file/line counts
-   (`internal/builddiff`) and a semantic per-`id` game-data diff
-   (`internal/gamediff`) rendered to a `changelog.md`.
-6. **Publishes** the output to a versioned directory and refreshes
-   `publish/.../current/`.
-7. **Notifies** (optional Discord webhook, `internal/notify`).
-
-## Output layout
-
+```sh
+go run cmd/extractor/main.go -once
 ```
+
+Rerun only Cpp2IL against the already-downloaded remote Windows client files:
+
+```sh
+go run cmd/extractor/main.go -once -il2cpp-only -il2cpp-env windows -il2cpp-format dummydll
+```
+
+Run every Cpp2IL output format configured by `il2cpp.cpp2il.full_dump`:
+
+```sh
+go run cmd/extractor/main.go -once -il2cpp-only -il2cpp-env windows
+```
+
+`-il2cpp-only` is designed for fast iteration. In remote mode it reads
+`output/buildfiles/<env>/client`, so it works best with `source.incremental:
+true`.
+
+## Source Modes
+
+`source.mode: local` extracts an installed RotMG build on disk. If
+`source.local_path` is empty, the extractor tries OS-specific default install
+locations.
+
+`source.mode: remote` fetches build information from the RotMG endpoints and
+downloads either the selected essential files or the full manifest. With
+`source.incremental: true`, downloaded client files are kept under
+`output/buildfiles/<platform>/client` and reused between runs.
+
+Launcher builds are downloaded and published as raw installers. They are not
+unpacked yet.
+
+## How It Works
+
+For each configured platform/build type, the pipeline does the following:
+
+1. Resolve the build source.
+   Local mode locates an installed Unity IL2CPP build. Remote mode fetches build
+   settings and downloads the client manifest files or launcher installer.
+2. Check whether the build is new.
+   Client builds use the metadata/build hash marker in `publish/.../current`.
+   If the hash matches, the pass exits early.
+3. Archive native game files.
+   Client builds copy `global-metadata.dat`, `GameAssembly`, and `UnityPlayer`
+   into `game_files/` for the immutable versioned archive.
+4. Extract Unity assets.
+   The default `native` backend extracts TextAssets from Unity SerializedFiles.
+   The optional `assetripper` backend exports broader Unity asset content.
+5. Merge game XML.
+   Extracted XML files are consolidated into `merged/object.xml`,
+   `merged/ground.xml`, and `merged/misc.xml`.
+6. Prepare IL2CPP metadata.
+   If enabled, obfuscated Windows metadata is decrypted to
+   `game_files/global-metadata.decrypted.dat`; already-valid metadata is copied
+   through.
+7. Dump IL2CPP, optionally.
+   Cpp2IL runs after metadata preparation and writes to `il2cpp_dump/`.
+   Failures warn by default or fail the build when `il2cpp.required: true`.
+8. Diff and publish.
+   The work directory is archived to a versioned folder, `current/` is updated,
+   and `changelog.md` is written.
+9. Notify.
+   Discord notification is sent when configured.
+
+## Output Layout
+
+```text
 <output.dir>/
-  temp/                              cleared at startup (work-in-progress)
+  buildfiles/<env>/client/              persistent remote client files when source.incremental=true
+  temp/
+    files/<env>/<build>/                transient downloads or local snapshots
+    work/<env>/<build>/                 work-in-progress output for the current pass
   publish/<env>/<build>/
-    <version>-<hash>/                immutable archive of each build
-    current/                         the latest build
-      build_hash.txt                 build identity (drives new-build detection)
+    <version>-<hash>/                   immutable archive of a processed build
+      game_files/                       native binaries + original/decrypted metadata
+      extracted_assets/                 raw extracted Unity assets
+      merged/{object,ground,misc}.xml
+      il2cpp_dump/                      optional Cpp2IL output, logs, manifest
+      changelog.md
+      build_hash.txt
       exalt_version.txt
       timestamp.txt
-      changelog.md                   semantic diff vs. the previous build
-      extracted_assets/              raw extracted assets
-      merged/{object,ground,misc}.xml
+    current/                            latest build, excluding game_files
 ```
 
-## Extraction backends
+`game_files/` is intentionally omitted from `current/` to avoid duplicating large
+native binaries. It remains available in each versioned archive.
 
-| Backend | Output | Needs a binary? | Notes |
-|---------|--------|-----------------|-------|
-| `native` (default) | Unity **TextAssets** as `.xml`/`.json`/`.txt` | No — pure Go | Cross-platform; produces the game data the merge/diff/changelog run on. |
-| `assetripper` | **All** assets (textures, sprites, meshes, …) as a Unity project | Yes — bundled [AssetRipper](https://github.com/AssetRipper/AssetRipper) | Heavier; emits `.bytes` for text, so the XML merge step no-ops. See [`tools/assetripper/README.md`](tools/assetripper/README.md). |
+## Extraction Backends
 
-## Configuration reference
+| Backend | Status | Output | Needs a binary? | Notes |
+|---------|--------|--------|-----------------|-------|
+| `native` | Supported, default | Unity TextAssets as `.xml`, `.json`, `.txt` | No | Pure Go. This is the normal game-data path used by merge/diff/changelog. |
+| `assetripper` | Supported | Broader Unity asset export | Yes, AssetRipper | Heavier. Useful for textures/sprites/meshes. XML merge may no-op when text exports as `.bytes`. |
+| `cpp2il` | Supported as optional IL2CPP dump | Cpp2IL output formats under `il2cpp_dump/cpp2il/<format>/` | Yes, Cpp2IL | Configured under `il2cpp.cpp2il`. Can run all listed formats or a selected format. Requires compatible metadata/tool support. |
+| `il2cppdumper` | Upcoming | Expected: DummyDll, `dump.cs`, JSON/script outputs | Yes, Il2CppDumper | Planned as a second IL2CPP pipeline beside Cpp2IL, useful where Perfare/Il2CppDumper supports the target Unity metadata/binary version. |
 
-All keys are optional; defaults are shown. See [`extractor.yml`](extractor.yml).
+## Configuration Reference
+
+All keys are optional. The values below show built-in defaults, not necessarily
+the local sample file.
 
 ```yaml
 source:
-  mode: local            # "local" | "remote"
-  platforms: [windows]   # remote: which to watch — "windows" and/or "macos"
-  local_path: ""         # install root; blank = auto-discover per OS
-  snapshot: false        # also copy the full Data dir (slow, ~750 MB)
-  copy_game_files: true  # copy GameAssembly/UnityPlayer + metadata (~130 MB)
-  full_download: false   # remote: download all files vs only essential (~80% smaller)
-  incremental: false     # remote: keep build files, only re-fetch changed ones
+  mode: local              # "local" | "remote"
+  platforms: [windows]     # remote platforms: "windows", "macos"
+  local_path: ""           # local install root; empty = auto-discover
+  snapshot: false          # copy the whole Data dir into output/temp/files
+  copy_game_files: true    # archive GameAssembly/UnityPlayer/metadata
+  full_download: false     # remote: download all manifest files instead of essentials
+  incremental: false       # remote: keep reusable files in output/buildfiles
 
 build:
-  version_override: "6.11.0.0.0"   # used when the version can't be auto-detected
+  version_override: ""     # fallback when Exalt version cannot be detected
 
 extraction:
-  backend: native        # "native" | "assetripper"
+  backend: native          # "native" | "assetripper"
+  decrypt_metadata: true   # prepare global-metadata.decrypted.dat for IL2CPP tools
+
+il2cpp:
+  enabled: false           # run IL2CPP dumping after asset extraction
+  required: false          # true = fail build when IL2CPP dump fails
+  timeout_minutes: 10      # per Cpp2IL command; 0 disables timeout
+  cpp2il:
+    dir: tools/il2cpp/cpp2il  # directory containing Cpp2IL, or the binary path itself
+    binary: ""                # explicit binary override
+    full_dump: true           # list and run every available Cpp2IL output format
+    formats: [dll_il_recovery] # fallback or explicit list when full_dump=false
+    processors: []            # Cpp2IL processing layers
+    extra_args: []            # appended to every Cpp2IL invocation
+    verbose: false
+    continue_on_fail: true    # keep trying formats after one format fails
 
 assetripper:
-  dir: tools/assetripper # directory holding the AssetRipper binary
-  port: 50111
-  export: primary        # "primary" (assets) | "project" (full Unity project)
+  dir: tools/assetripper   # directory holding AssetRipper.GUI.Free[.exe]
+  port: 0                  # 0 = choose a free local port
+  export: primary          # "primary" | "project"
 
 notify:
   discord:
     enabled: false
     webhook_url: ""
-    role_id: ""          # optional role to ping
+    role_id: ""
 
 poll:
   client_check_delay_minutes: 5
@@ -108,41 +193,82 @@ poll:
 
 output:
   dir: ./output
+  keep_builds: 0           # 0 = keep all versioned builds
 
 logging:
-  level: debug           # debug | info | warn | error
+  level: debug             # debug | info | warn | error
   console: true
   colors: true
   file: true
 ```
 
-## Platform notes
+## IL2CPP Dumping Notes
 
-The `native` backend and the whole pipeline are pure Go and cross-compile for
-macOS, Windows and Linux. Only the optional `assetripper` backend needs a
-platform-specific binary (resolved automatically as `AssetRipper.GUI.Free` or
-`.exe`). The original Python paths were macOS-specific; install-path
-auto-discovery now covers all three platforms (Windows/Linux defaults are
-best-effort — override with `source.local_path` if needed).
+Cpp2IL is configured separately from Unity asset extraction. Enable it with:
+
+```yaml
+il2cpp:
+  enabled: true
+```
+
+Place the native Cpp2IL executable at `tools/il2cpp/cpp2il`, place an
+OS-specific binary inside that directory, or set `il2cpp.cpp2il.binary`.
+
+The pipeline stages a minimal Cpp2IL game folder under
+`il2cpp_dump/_input`, swaps in `game_files/global-metadata.decrypted.dat`, and
+runs Cpp2IL with absolute `--game-path` and `--output-to` paths. The temporary
+staging folder is removed after the run. Logs and `manifest.json` are retained.
+
+For Unity 6000 builds, older Cpp2IL binaries may fail after detecting metadata
+version `29.1`. If that happens, test with a single format first:
+
+```sh
+go run cmd/extractor/main.go -once -il2cpp-only -il2cpp-env windows -il2cpp-format dummydll
+```
+
+Then inspect:
+
+```text
+output/temp/work/windows/client/il2cpp_dump/logs/dummydll.log
+output/temp/work/windows/client/il2cpp_dump/manifest.json
+```
+
+## Platform Notes
+
+The default `native` backend and pipeline code are pure Go. AssetRipper, Cpp2IL,
+and the upcoming Il2CppDumper backend require platform-appropriate external
+binaries.
+
+The downloader can fetch Windows builds while running on macOS or Linux. IL2CPP
+tools still need to support analyzing that target binary format.
 
 ## Development
 
 ```sh
-go test ./...                       # run tests
+go test ./...
 go vet ./...
-GOOS=windows GOARCH=amd64 go build ./...   # cross-compile check
+GOOS=windows GOARCH=amd64 go build ./...
+```
+
+At the moment, `go test ./...` may expose unrelated test failures outside the
+current IL2CPP path; targeted verification while working on Cpp2IL is:
+
+```sh
+go test ./internal/il2cpp ./internal/pipeline ./cmd/extractor ./internal/config
+go vet ./internal/il2cpp ./internal/pipeline ./cmd/extractor ./internal/config
 ```
 
 ## Roadmap
 
-- **il2cpp dump** — port the binary dump. See
-  [`docs/il2cpp-reference.md`](docs/il2cpp-reference.md) (original used
-  Il2CppInspector; Unity 6 likely needs Cpp2IL).
-- **Remote download** — revive once the live app-init endpoints are known
-  (`source.mode: remote` is stubbed and waiting).
-- **Additional delivery targets** — the original config declared SSH, FTP and
-  Redis pub-sub outputs (never implemented) alongside Discord. Add as
-  `notify`/`publish` targets if needed.
-- **macOS launcher unpacking** — the macOS launcher is downloaded as a raw
-  `.dmg` but not unpacked (low priority). The Windows launcher is likewise the
-  raw `.exe`.
+- **Refresh/validate RotMG metadata decryption constants** when Windows
+  metadata changes. Cpp2IL reaching metadata initialization but failing with
+  `EndOfStreamException` usually means either stale constants or unsupported
+  metadata layout.
+- **Try/update newer Cpp2IL builds** for Unity 6000 metadata support.
+- **Add Il2CppDumper backend** as a separate IL2CPP pipeline with its own tool
+  directory, config, logs, and manifest entries.
+- **Improve IL2CPP result normalization** so common outputs can be compared
+  across Cpp2IL and Il2CppDumper.
+- **Launcher unpacking** for `.exe`/`.dmg`/`.pkg` installers.
+- **Additional delivery targets** such as SSH, FTP, Redis pub-sub, or other
+  publish/notify sinks.
