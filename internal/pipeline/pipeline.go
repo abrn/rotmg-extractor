@@ -244,7 +244,7 @@ func (p *Pipeline) preBuildSetup(platformName string, bt rotmg.BuildType, build 
 // Extraction reads directly from the source install — the build is not copied
 // unless Snapshot is requested — and only proceeds when the build is new.
 func (p *Pipeline) RunLocal(ctx context.Context, envName string, build localsrc.Build, snapshot, copyGameFiles bool) error {
-	const buildType = "Client"
+	const buildType = "client"
 
 	filesDir := p.Layout.FilesDir(envName, buildType)
 	workDir := p.Layout.WorkDir(envName, buildType)

@@ -12,7 +12,7 @@ import (
 
 func sampleNotification() Notification {
 	return Notification{
-		Env: "Production", BuildType: "Client", Version: "6.11.0.0.0", Hash: "b11b4e834d86",
+		Env: "Production", BuildType: "client", Version: "6.11.0.0.0", Hash: "b11b4e834d86",
 		NewFiles: 2, DelFiles: 1, AddedLines: 342, RemovedLines: 958,
 		ObjAdded: 5, ObjRemoved: 1, ObjChanged: 12,
 		GndAdded: 0, GndRemoved: 0, GndChanged: 3,

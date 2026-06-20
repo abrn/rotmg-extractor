@@ -24,8 +24,8 @@ var appInitHeaders = map[string]string{
 type BuildType string
 
 const (
-	Client   BuildType = "Client"
-	Launcher BuildType = "Launcher"
+	Client   BuildType = "client"
+	Launcher BuildType = "launcher"
 )
 
 // Platform is a downloadable client platform. The Windows and macOS builds are
