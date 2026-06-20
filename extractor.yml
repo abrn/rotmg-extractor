@@ -10,14 +10,18 @@ source:
   # containing RotMGExalt_Data on Windows/Linux. Leave blank to auto-discover
   # from OS-specific default install locations.
   local_path: ""
-  # Copy the full build files into the output tree as an archive (slow, 100s of
-  # MB). Off by default: extraction reads directly from the source install.
+  # Copy the entire Data dir into the output tree (slow, ~750 MB). Off by
+  # default: extraction reads directly from the source install.
   snapshot: false
+  # Copy the native game binaries (GameAssembly/UnityPlayer) and
+  # global-metadata.dat into the output (~130 MB). These are also scanned for
+  # the build version. On by default.
+  copy_game_files: true
 
 build:
-  # Exalt version to record when it can't be auto-detected from the metadata
-  # (Unity 6 builds no longer embed it where the old extractor looked).
-  version_override: "6.11.0.0.0"
+  # Fallback Exalt version, used only when it can't be detected from the game
+  # metadata. The version is normally auto-detected (e.g. 6.11.0.1.0).
+  version_override: "6.11.0.1.0"
 
 extraction:
   # "native"      pure-Go TextAsset parser, no external binary (game XML/JSON).

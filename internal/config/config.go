@@ -68,10 +68,13 @@ type Source struct {
 	// macOS, or a directory containing a *_Data folder on Windows/Linux). If
 	// empty, the install is auto-discovered from OS-specific default locations.
 	LocalPath string `yaml:"local_path"`
-	// Snapshot, when true, copies the full build files into the output tree as
-	// an archive (slow: hundreds of MB). Off by default; extraction reads
-	// directly from the source install.
+	// Snapshot, when true, copies the full build files (the whole Data dir,
+	// hundreds of MB) into the output tree. Off by default.
 	Snapshot bool `yaml:"snapshot"`
+	// CopyGameFiles, when true, copies the native game binaries
+	// (GameAssembly/UnityPlayer) and global-metadata.dat into the output. These
+	// are also scanned for the build version. On by default (~130 MB).
+	CopyGameFiles bool `yaml:"copy_game_files"`
 }
 
 // Poll controls how often the extractor checks for new builds.
@@ -101,12 +104,13 @@ type Logging struct {
 func Default() Config {
 	return Config{
 		Source: Source{
-			Mode:      "local",
-			LocalPath: "", // empty => auto-discover per OS
-			Snapshot:  false,
+			Mode:          "local",
+			LocalPath:     "", // empty => auto-discover per OS
+			Snapshot:      false,
+			CopyGameFiles: true,
 		},
 		Build: Build{
-			VersionOverride: "6.11.0.0.0",
+			VersionOverride: "", // auto-detected from metadata; set only as a fallback
 		},
 		Extraction: Extraction{
 			Backend: "native",
