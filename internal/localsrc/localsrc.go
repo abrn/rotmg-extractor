@@ -40,6 +40,35 @@ var gameAssemblyNames = []string{
 	"GameAssembly.dll",   // Windows
 }
 
+// unityPlayerNames lists the platform-specific Unity runtime library names.
+var unityPlayerNames = []string{
+	"UnityPlayer.dylib",
+	"UnityPlayer.so",
+	"UnityPlayer.dll",
+}
+
+// NativeFiles returns the native binaries and metadata worth archiving and
+// scanning for the build version: global-metadata.dat, the il2cpp GameAssembly,
+// and the UnityPlayer runtime (when present). The metadata is listed first
+// because it is where the version string lives.
+func (b Build) NativeFiles() []string {
+	var files []string
+	if b.Metadata != "" {
+		files = append(files, b.Metadata)
+	}
+	if b.GameAssembly != "" {
+		files = append(files, b.GameAssembly)
+		dir := filepath.Dir(b.GameAssembly)
+		for _, name := range unityPlayerNames {
+			p := filepath.Join(dir, name)
+			if fsutil.Exists(p) {
+				files = append(files, p)
+			}
+		}
+	}
+	return files
+}
+
 // Discover returns the install path to use. If configured is non-empty it is
 // used directly; otherwise OS-specific default locations are tried in order.
 // The returned error lists the paths tried so the user knows what to configure.
