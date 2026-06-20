@@ -14,3 +14,5 @@ output/
 # to re-download per platform, or use git-lfs if you want them tracked.
 tools/assetripper/*
 !tools/assetripper/README.md
+# macOS
+.DS_Store
