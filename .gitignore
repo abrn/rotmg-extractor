@@ -6,12 +6,7 @@
 .idea/discord.xml
 .idea/workspace.xml
 
-# python
-venv
-__pycache__
-
-# source
-src/test.py
+# output
 output/
 
 # bundled AssetRipper binaries: ~147MB, exceeds GitHub's 100MB push limit.
