@@ -15,9 +15,22 @@ type Config struct {
 	Build       Build       `yaml:"build"`
 	Extraction  Extraction  `yaml:"extraction"`
 	AssetRipper AssetRipper `yaml:"assetripper"`
+	Notify      Notify      `yaml:"notify"`
 	Poll        Poll        `yaml:"poll"`
 	Output      Output      `yaml:"output"`
 	Logging     Logging     `yaml:"logging"`
+}
+
+// Notify configures new-build notifications.
+type Notify struct {
+	Discord DiscordNotify `yaml:"discord"`
+}
+
+// DiscordNotify configures the Discord webhook notifier.
+type DiscordNotify struct {
+	Enabled    bool   `yaml:"enabled"`
+	WebhookURL string `yaml:"webhook_url"`
+	RoleID     string `yaml:"role_id"`
 }
 
 // Build holds build-level overrides.
@@ -102,6 +115,13 @@ func Default() Config {
 			Dir:    "tools/assetripper",
 			Port:   50111,
 			Export: "primary",
+		},
+		Notify: Notify{
+			Discord: DiscordNotify{
+				Enabled:    false,
+				WebhookURL: "",
+				RoleID:     "",
+			},
 		},
 		Poll: Poll{
 			ClientCheckDelayMinutes:   5,

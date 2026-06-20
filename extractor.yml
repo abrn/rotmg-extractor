@@ -37,6 +37,14 @@ assetripper:
   # reconstructed Unity project.
   export: primary
 
+notify:
+  discord:
+    # Send a Discord webhook embed when a new build is published.
+    enabled: false
+    webhook_url: ""
+    # Optional role to ping (the numeric role ID), e.g. "123456789012345678".
+    role_id: ""
+
 poll:
   # Minutes between polling passes that check for new builds.
   client_check_delay_minutes: 5
