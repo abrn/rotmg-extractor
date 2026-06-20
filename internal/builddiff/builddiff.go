@@ -6,6 +6,7 @@ package builddiff
 
 import (
 	"bufio"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -125,13 +126,23 @@ func lineCounts(path string) (map[string]int, error) {
 	}
 	defer f.Close()
 
+	// bufio.Reader.ReadString has no line-length limit, unlike bufio.Scanner —
+	// some assets (e.g. a 26MB minified sprite atlas) are a single line.
 	counts := map[string]int{}
-	sc := bufio.NewScanner(f)
-	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024) // allow long lines
-	for sc.Scan() {
-		counts[sc.Text()]++
+	r := bufio.NewReader(f)
+	for {
+		line, err := r.ReadString('\n')
+		if len(line) > 0 {
+			counts[line]++
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
 	}
-	return counts, sc.Err()
+	return counts, nil
 }
 
 func countLines(path string) (int, error) {
