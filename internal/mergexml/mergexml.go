@@ -59,7 +59,7 @@ func Merge(log *logx.Logger, srcDir, outDir string) error {
 		return nil
 	}
 
-	log.Info("Merging %d XML file(s)...", len(files))
+	log.Success("Merging %d XML file(s)...", len(files))
 	log.Indent()
 	defer log.Dedent()
 

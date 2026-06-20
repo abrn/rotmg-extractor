@@ -121,7 +121,7 @@ func (p *Pipeline) preBuildSetup(env rotmg.Environment, bt rotmg.BuildType, buil
 		return false, fmt.Errorf("reading current build hash: %w", err)
 	}
 
-	p.Log.Info("New build! Build hash: %s", build.BuildHash)
+	p.Log.Success("New build! Build hash: %s", build.BuildHash)
 	if err := writeFile(filepath.Join(workDir, "build_hash.txt"), build.BuildHash); err != nil {
 		return false, err
 	}
@@ -179,10 +179,10 @@ func (p *Pipeline) RunLocal(ctx context.Context, envName string, build localsrc.
 	// New-build detection: skip everything (including any copy) when the build
 	// identity matches what was last processed.
 	if !p.isNewBuild(build.Hash, publishDir) {
-		p.Log.Info("Build hash unchanged (%s) - nothing to do.", build.Hash)
+		p.Log.Success("Build hash unchanged (%s) - nothing to do.", build.Hash)
 		return nil
 	}
-	p.Log.Info("New build! Build hash: %s", build.Hash)
+	p.Log.Success("New build! Build hash: %s", build.Hash)
 	if err := writeFile(filepath.Join(workDir, "build_hash.txt"), build.Hash); err != nil {
 		return err
 	}
@@ -216,7 +216,7 @@ func (p *Pipeline) RunLocal(ctx context.Context, envName string, build localsrc.
 
 	p.sendNotification(ctx, envName, buildType, version, build.Hash, fileDiff, gameSummary)
 
-	p.Log.Info("Done %s %s", envName, buildType)
+	p.Log.Success("Done (%s %s)", envName, buildType)
 	return nil
 }
 
@@ -310,13 +310,13 @@ func (p *Pipeline) extractLocalBuild(ctx context.Context, build localsrc.Build, 
 	}
 	switch {
 	case version != "":
-		p.Log.Info("Detected Exalt version %q", version)
+		p.Log.Success("Detected Exalt version %q", version)
 		if p.VersionOverride != "" && p.VersionOverride != version {
 			p.Log.Warn("Configured version override %q differs from detected %q - using detected", p.VersionOverride, version)
 		}
 	case p.VersionOverride != "":
 		version = p.VersionOverride
-		p.Log.Info("Exalt version not detected; using configured override %q", version)
+		p.Log.Warn("Exalt version not detected; using configured override %q", version)
 	default:
 		p.Log.Warn("Could not determine Exalt version - leaving blank")
 	}
@@ -398,7 +398,7 @@ func (p *Pipeline) publishBuild(workDir, publishDir, version, hash string) (buil
 	if err := replaceDir(workDir, versionDir); err != nil {
 		return builddiff.Diff{}, gamediff.Summary{}, fmt.Errorf("archiving build: %w", err)
 	}
-	p.Log.Info("Archived build to %s", versionDir)
+	p.Log.Success("Archived build to %s", versionDir)
 
 	// Refresh publish/current.
 	if err := replaceDir(workDir, currentDir); err != nil {
