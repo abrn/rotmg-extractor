@@ -13,3 +13,9 @@ __pycache__
 # source
 src/test.py
 output/
+
+# bundled AssetRipper binaries: ~147MB, exceeds GitHub's 100MB push limit.
+# Kept in the working tree but not committed. See tools/assetripper/README.md
+# to re-download per platform, or use git-lfs if you want them tracked.
+tools/assetripper/*
+!tools/assetripper/README.md
