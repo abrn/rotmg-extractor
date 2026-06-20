@@ -19,6 +19,7 @@ import (
 	"sort"
 
 	"rotmg-extractor/internal/logx"
+	"rotmg-extractor/internal/xmlutil"
 )
 
 // bucket describes one output file and the root element wrapping its contents.
@@ -96,7 +97,7 @@ func bucketFile(path string, out map[string]*bytes.Buffer, counts map[string]int
 	}
 	data = bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf}) // UTF-8 BOM
 
-	dec := xml.NewDecoder(bytes.NewReader(data))
+	dec := xmlutil.NewDecoder(bytes.NewReader(data))
 	depth := 0
 	var elemStart int64
 	var elemKey string

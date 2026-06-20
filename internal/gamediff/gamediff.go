@@ -16,6 +16,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"rotmg-extractor/internal/xmlutil"
 )
 
 // Change identifies a single added/removed/changed entry.
@@ -108,7 +110,7 @@ func parseEntries(path string) (map[string]entry, error) {
 	data = bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf})
 
 	res := map[string]entry{}
-	dec := xml.NewDecoder(bytes.NewReader(data))
+	dec := xmlutil.NewDecoder(bytes.NewReader(data))
 	depth := 0
 	var start int64
 	var id string
