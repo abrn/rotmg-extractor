@@ -115,7 +115,7 @@ func runLocalPass(ctx context.Context, log *logx.Logger, pipe *pipeline.Pipeline
 		log.Error("Could not locate local build: %v", err)
 		return
 	}
-	if err := pipe.RunLocal(ctx, "Production", build, src.Snapshot); err != nil {
+	if err := pipe.RunLocal(ctx, "Production", build, src.Snapshot, src.CopyGameFiles); err != nil {
 		log.Error("Local pipeline failed: %v", err)
 	}
 	log.Info("Done!")
