@@ -27,7 +27,7 @@ source:
   # Keep build files on disk and only re-download files whose checksum changed
   # between builds. Saves bandwidth (unchanged binaries aren't re-fetched) but
   # keeps ~500 MB/platform on disk. Off by default (downloads go to temp).
-  incremental: false
+  incremental: true
 
 build:
   # Fallback Exalt version, used only when it can't be detected from the game
@@ -43,6 +43,35 @@ extraction:
   # skipped when the metadata is already valid (the macOS build ships it
   # decrypted). On by default.
   decrypt_metadata: true
+
+il2cpp:
+  # Run Cpp2IL after asset extraction, using GameAssembly and a dumpable
+  # global-metadata.dat prepared by extraction.decrypt_metadata.
+  enabled: true
+  # When false, Cpp2IL failures are logged but the build still publishes.
+  required: false
+  # Timeout for each Cpp2IL command. Set 0 to disable.
+  timeout_minutes: 10
+  cpp2il:
+    # Directory holding the Cpp2IL native binary, or the binary path itself.
+    # See docs/il2cpp-reference.md.
+    dir: tools/il2cpp/cpp2il
+    # Optional absolute/relative binary override. Empty resolves by OS:
+    # Cpp2IL-Win.exe, Cpp2IL-Mac, Cpp2IL-Linux, or Cpp2IL.
+    binary: ""
+    # Full dump mode asks Cpp2IL for every available output format and runs
+    # each one into il2cpp_dump/cpp2il/<format>/.
+    full_dump: true
+    # Fallback formats if Cpp2IL cannot list formats, or the explicit list when
+    # full_dump is false. Add formats from `Cpp2IL --list-output-formats`.
+    formats: [dll_il_recovery]
+    # Optional processing layers, e.g. [attributeinjector].
+    processors: []
+    # Extra arguments appended to every Cpp2IL invocation.
+    extra_args: []
+    verbose: false
+    # In full dump mode, keep trying later formats after one format fails.
+    continue_on_fail: true
 
 assetripper:
   # Directory holding the AssetRipper binary (relative to the working dir). The

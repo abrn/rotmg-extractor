@@ -14,6 +14,7 @@ type Config struct {
 	Source      Source      `yaml:"source"`
 	Build       Build       `yaml:"build"`
 	Extraction  Extraction  `yaml:"extraction"`
+	IL2CPP      IL2CPP      `yaml:"il2cpp"`
 	AssetRipper AssetRipper `yaml:"assetripper"`
 	Notify      Notify      `yaml:"notify"`
 	Poll        Poll        `yaml:"poll"`
@@ -49,6 +50,44 @@ type Extraction struct {
 	// il2cpp dumping. Automatically skipped when the metadata is already valid
 	// (the macOS build ships it decrypted). On by default.
 	DecryptMetadata bool `yaml:"decrypt_metadata"`
+}
+
+// IL2CPP configures managed-code/metadata dumping from the native IL2CPP
+// binary and dumpable global-metadata.dat.
+type IL2CPP struct {
+	// Enabled runs the configured dumper after Unity asset extraction.
+	Enabled bool `yaml:"enabled"`
+	// Required makes dump failures fail the build. When false, failures are
+	// logged and the normal asset publish continues.
+	Required bool `yaml:"required"`
+	// TimeoutMinutes bounds each Cpp2IL command invocation. 0 disables the
+	// timeout.
+	TimeoutMinutes int `yaml:"timeout_minutes"`
+	// Cpp2IL configures the Cpp2IL backend.
+	Cpp2IL Cpp2IL `yaml:"cpp2il"`
+}
+
+// Cpp2IL configures the bundled Cpp2IL executable.
+type Cpp2IL struct {
+	// Dir is either the directory holding the Cpp2IL binary or the binary path
+	// itself.
+	Dir string `yaml:"dir"`
+	// Binary, when set, overrides OS-specific binary resolution.
+	Binary string `yaml:"binary"`
+	// FullDump lists Cpp2IL output formats at runtime and runs every format it
+	// reports. If listing fails, Formats is used as a fallback.
+	FullDump bool `yaml:"full_dump"`
+	// Formats is the fallback/output-format list when FullDump is disabled or
+	// Cpp2IL cannot list formats.
+	Formats []string `yaml:"formats"`
+	// Processors selects Cpp2IL processing layers, e.g. "attributeinjector".
+	Processors []string `yaml:"processors"`
+	// ExtraArgs are appended to every Cpp2IL run for local experimentation.
+	ExtraArgs []string `yaml:"extra_args"`
+	// Verbose passes --verbose.
+	Verbose bool `yaml:"verbose"`
+	// ContinueOnFail attempts every selected output format even if one fails.
+	ContinueOnFail bool `yaml:"continue_on_fail"`
 }
 
 // AssetRipper configures the bundled Unity asset extractor.
@@ -136,6 +175,17 @@ func Default() Config {
 		Extraction: Extraction{
 			Backend:         "native",
 			DecryptMetadata: true,
+		},
+		IL2CPP: IL2CPP{
+			Enabled:        false,
+			Required:       false,
+			TimeoutMinutes: 10,
+			Cpp2IL: Cpp2IL{
+				Dir:            "tools/il2cpp/cpp2il",
+				FullDump:       true,
+				Formats:        []string{"dll_il_recovery"},
+				ContinueOnFail: true,
+			},
 		},
 		AssetRipper: AssetRipper{
 			Dir:    "tools/assetripper",
