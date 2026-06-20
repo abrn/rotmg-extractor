@@ -14,6 +14,7 @@ package metadata
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os"
 )
@@ -32,9 +33,31 @@ const (
 	teaLenAdd         = 0x621CF    // added to the length seed to get the XXTEA block length
 )
 
-// xxteaKeyText is the XXTEA key (as raw bytes) reverse-engineered from
-// GameAssembly. It is build-specific and must be refreshed when it rotates.
-var xxteaKeyText = []byte("81142158a16b6e4f8c1acca6940ea639d1f420991b9d0c22e51f827")
+// The XXTEA key is stored in GameAssembly XOR-obfuscated with xorKey64 (an
+// 8-byte repeating little-endian key). Both are build-specific and rotate
+// between releases (see docs/il2cpp-reference.md to refresh).
+const (
+	xorKey64       uint64 = 0x89D75571BBA92FD7
+	xxteaKeyEncHex        = "e117cb894531b5bfe31c9c8b4560e3bf" +
+		"b24ecbd8126cb5b8e74a9e8f1060eeb9" +
+		"e017a9"
+)
+
+// keyText de-obfuscates the XXTEA key (GameAssembly XOR literal): each byte is
+// XORed with the repeating 8-byte xorKey64.
+func keyText() []byte {
+	enc, err := hex.DecodeString(xxteaKeyEncHex)
+	if err != nil {
+		panic("metadata: invalid xxteaKeyEncHex: " + err.Error())
+	}
+	var k [8]byte
+	binary.LittleEndian.PutUint64(k[:], xorKey64)
+	out := make([]byte, len(enc))
+	for i, c := range enc {
+		out[i] = c ^ k[i&7]
+	}
+	return out
+}
 
 // IsDecrypted reports whether data already begins with the il2cpp magic, i.e. it
 // is a standard metadata file that needs no decryption (the macOS case).
@@ -85,9 +108,12 @@ func xxteaDecryptWithLength(data []byte, key [4]uint32) ([]byte, error) {
 		}
 	}
 
-	outLen := v[n-1]
-	if outLen > uint32(n*4) {
-		return nil, fmt.Errorf("bad XXTEA plaintext length %d", outLen)
+	// The final word holds the plaintext length, which must land within the last
+	// XXTEA word (data_len-3 .. data_len).
+	outLen := int64(v[n-1])
+	dataLen := int64((n - 1) * 4)
+	if outLen < dataLen-3 || outLen > dataLen {
+		return nil, fmt.Errorf("bad XXTEA plaintext length %d", v[n-1])
 	}
 	out := make([]byte, outLen)
 	for i := range out {
@@ -115,11 +141,11 @@ func Decrypt(enc []byte, version uint32) ([]byte, error) {
 		return nil, fmt.Errorf("XXTEA block length %d out of range (size %d)", teaLen, len(enc))
 	}
 
-	header, err := xxteaDecryptWithLength(enc[4:4+teaLen], keyWords(xxteaKeyText))
+	header, err := xxteaDecryptWithLength(enc[4:4+teaLen], keyWords(keyText()))
 	if err != nil {
 		return nil, err
 	}
-	if len(header) < 0x240 {
+	if len(header) < 0x210 {
 		return nil, fmt.Errorf("decrypted header too small (%d bytes)", len(header))
 	}
 
@@ -142,21 +168,21 @@ func Decrypt(enc []byte, version uint32) ([]byte, error) {
 	binary.LittleEndian.PutUint32(dec[4:], version)
 	copy(dec[8:8+len(header)], header)
 
-	// String heap: XOR each byte with (i + 0x5F).
-	strOff := binary.LittleEndian.Uint32(header[0x2C:])
-	strSize := binary.LittleEndian.Uint32(header[0x0C:])
-	for i := uint32(0); i < strSize; i++ {
-		if int(strOff+i) < len(dec) {
-			dec[strOff+i] ^= byte(i + 0x5F)
+	// Table 1: XOR each byte with (0x0D - i).
+	t1Off := binary.LittleEndian.Uint32(header[0xF4:])
+	t1Size := binary.LittleEndian.Uint32(header[0x1C:])
+	for i := uint32(0); i < t1Size; i++ {
+		if int(t1Off+i) < len(dec) {
+			dec[t1Off+i] ^= byte(0x0D - i)
 		}
 	}
 
-	// Second table: XOR each byte with (0x0D - i).
-	tblOff := binary.LittleEndian.Uint32(header[0x58:])
-	tblSize := binary.LittleEndian.Uint32(header[0x23C:])
-	for i := uint32(0); i < tblSize; i++ {
-		if int(tblOff+i) < len(dec) {
-			dec[tblOff+i] ^= byte(0x0D - i)
+	// Table 2 / string data: XOR each byte with (i + 0x5F).
+	t2Off := binary.LittleEndian.Uint32(header[0x54:])
+	t2Size := binary.LittleEndian.Uint32(header[0x20C:])
+	for i := uint32(0); i < t2Size; i++ {
+		if int(t2Off+i) < len(dec) {
+			dec[t2Off+i] ^= byte(i + 0x5F)
 		}
 	}
 

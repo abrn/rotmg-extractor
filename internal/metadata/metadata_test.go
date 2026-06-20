@@ -26,10 +26,19 @@ func TestXXTEADecryptGolden(t *testing.T) {
 	}
 }
 
+func TestKeyText(t *testing.T) {
+	// De-obfuscated XXTEA key, cross-checked against the reference Python.
+	want := "3638623234646236343335303435343665616263633962313065373461353930373800"
+	if got := hex.EncodeToString(keyText()); got != want {
+		t.Errorf("keyText = %s, want %s", got, want)
+	}
+}
+
 func TestKeyWords(t *testing.T) {
-	// Packing of the real key, matching GameAssembly (k0 high byte is key[6]).
-	got := keyWords(xxteaKeyText)
-	want := [4]uint32{0x35313138, 0x38353132, 0x62363161, 0x66346536}
+	// Packing of the de-obfuscated key (k0 high byte is key[6]), cross-checked
+	// against the reference Python.
+	got := keyWords(keyText())
+	want := [4]uint32{0x62623836, 0x36626434, 0x30353334, 0x36343534}
 	if got != want {
 		t.Errorf("keyWords = %#x, want %#x", got, want)
 	}
