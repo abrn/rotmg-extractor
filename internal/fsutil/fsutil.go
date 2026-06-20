@@ -43,6 +43,13 @@ func CopyFile(src, dst string) error {
 // CopyDir recursively copies the directory tree rooted at src into dst.
 // Symlinks are skipped (RotMG build data contains none of interest).
 func CopyDir(src, dst string) error {
+	return CopyDirExcept(src, dst, nil)
+}
+
+// CopyDirExcept is CopyDir but skips any entry whose path relative to src (slash
+// separated) is in the exclude set. A top-level excluded directory is skipped
+// entirely.
+func CopyDirExcept(src, dst string, exclude map[string]bool) error {
 	return filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -50,6 +57,12 @@ func CopyDir(src, dst string) error {
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
 			return err
+		}
+		if exclude[filepath.ToSlash(rel)] {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		target := filepath.Join(dst, rel)
 

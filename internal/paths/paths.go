@@ -2,9 +2,10 @@
 // a configurable output root. It mirrors the directory structure of the
 // original program:
 //
-//	<root>/temp/files/<env>/<build>     downloaded build files
-//	<root>/temp/work/<env>/<build>      work-in-progress output
-//	<root>/publish/<env>/<build>        published output (served on the web)
+//	<root>/temp/files/<env>/<build>       transient downloaded files (local snapshot)
+//	<root>/temp/work/<env>/<build>        work-in-progress output
+//	<root>/buildfiles/<env>/<build>       persistent build files (remote incremental download)
+//	<root>/publish/<env>/<build>          published output (served on the web)
 package paths
 
 import (
@@ -34,6 +35,12 @@ func (l Layout) FilesDir(env, build string) string {
 // WorkDir is the work-in-progress location for a given env/build.
 func (l Layout) WorkDir(env, build string) string {
 	return filepath.Join(l.Temp(), "work", norm(env), norm(build))
+}
+
+// BuildFilesDir is the persistent location remote downloads accumulate in, so
+// unchanged files can be skipped on the next build. Not cleared with temp.
+func (l Layout) BuildFilesDir(env, build string) string {
+	return filepath.Join(l.Root, "buildfiles", norm(env), norm(build))
 }
 
 // PublishDir is the published location for a given env/build.
