@@ -166,7 +166,7 @@ func ClientFiles(ctx context.Context, log *logx.Logger, buildURL, destDir string
 		stats.Pruned = pruneExtra(destDir, keep)
 	}
 
-	log.Info("Downloaded %d, reused %d, pruned %d (of %d selected)",
+	log.Success("Downloaded %d, reused %d, pruned %d (of %d selected)",
 		stats.Downloaded, stats.Reused, stats.Pruned, stats.Total)
 	return stats, nil
 }
@@ -214,7 +214,7 @@ var installerExts = []string{".exe", ".dmg", ".pkg", ".zip"}
 // known installer extensions (and a .gz fallback for each), and returns the
 // path to the downloaded file.
 func LauncherInstaller(ctx context.Context, log *logx.Logger, buildURL, buildID, destDir string) (string, error) {
-	log.Info("Downloading launcher installer...")
+	log.Debug("Downloading launcher installer...")
 	client := &http.Client{Timeout: 15 * time.Minute}
 
 	var result string
@@ -241,7 +241,7 @@ func LauncherInstaller(ctx context.Context, log *logx.Logger, buildURL, buildID,
 	if err != nil {
 		return "", err
 	}
-	log.Info("Downloaded launcher installer (%s)", filepath.Base(result))
+	log.Success("Downloaded launcher installer (%s)", filepath.Base(result))
 	return result, nil
 }
 
