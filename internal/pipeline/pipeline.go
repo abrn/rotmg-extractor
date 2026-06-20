@@ -8,6 +8,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,6 +23,7 @@ import (
 	"rotmg-extractor/internal/extract"
 	"rotmg-extractor/internal/fsutil"
 	"rotmg-extractor/internal/gamediff"
+	"rotmg-extractor/internal/il2cpp"
 	"rotmg-extractor/internal/localsrc"
 	"rotmg-extractor/internal/logx"
 	"rotmg-extractor/internal/mergexml"
@@ -39,12 +41,24 @@ type Extractor interface {
 	Name() string
 }
 
+// IL2CPPDumper extracts managed IL2CPP artifacts from the native binary and
+// dumpable metadata.
+type IL2CPPDumper interface {
+	Dump(ctx context.Context, input il2cpp.Input, outDir string) error
+	Available() bool
+	Name() string
+}
+
 // Pipeline carries the dependencies shared across build runs.
 type Pipeline struct {
 	Log    *logx.Logger
 	Layout paths.Layout
 	// Extractor extracts Unity assets. May be nil to skip extraction.
 	Extractor Extractor
+	// IL2CPPDumper extracts managed code/metadata dumps. May be nil to skip.
+	IL2CPPDumper IL2CPPDumper
+	// IL2CPPRequired makes dumper failures fail the build instead of warning.
+	IL2CPPRequired bool
 	// VersionOverride is used as the Exalt version when it can't be detected.
 	VersionOverride string
 	// Notifier announces new builds. May be nil to disable notifications.
@@ -58,7 +72,7 @@ type Pipeline struct {
 	// KeepBuilds bounds how many versioned builds to retain per platform/build
 	// type (0 = keep all).
 	KeepBuilds int
-	// DecryptMetadata produces a decrypted global-metadata.dat for il2cpp
+	// DecryptMetadata produces a dumpable global-metadata.dat for il2cpp
 	// dumping (auto-skipped when the metadata is already valid).
 	DecryptMetadata bool
 }
@@ -307,6 +321,34 @@ func (p *Pipeline) RunLocal(ctx context.Context, envName string, build localsrc.
 	return nil
 }
 
+// RunIL2CPPOnly reruns just the IL2CPP dump for an already-located client
+// build. It is intended for iterating on dumper configuration without
+// re-downloading, re-extracting Unity assets, or republishing the build.
+func (p *Pipeline) RunIL2CPPOnly(ctx context.Context, envName string, build localsrc.Build) error {
+	const buildType = "client"
+
+	workDir := p.Layout.WorkDir(envName, buildType)
+	if err := os.MkdirAll(workDir, 0o755); err != nil {
+		return fmt.Errorf("creating work dir: %w", err)
+	}
+	if err := p.Log.SetFile(filepath.Join(workDir, "il2cpp.log")); err != nil {
+		p.Log.Warn("could not open il2cpp log file: %v", err)
+	}
+	defer p.Log.SetFile("")
+
+	p.Log.PrintTime()
+	p.Log.Info("Starting %s %s IL2CPP-only dump (%s)", envName, buildType, build.AppPath)
+	p.Log.Indent()
+	defer p.Log.Dedent()
+
+	metadataPath := p.prepareMetadata(build, workDir)
+	if err := p.dumpIL2CPP(ctx, build, metadataPath, workDir); err != nil {
+		return err
+	}
+	p.Log.Success("IL2CPP-only dump written to %s", filepath.Join(workDir, "il2cpp_dump"))
+	return nil
+}
+
 // processedHashFile is the persistent marker recording the last build processed
 // for an env/build. It survives temp-dir clearing because it lives under
 // publish/, and it is the same path the remote flow compares against.
@@ -431,47 +473,96 @@ func (p *Pipeline) extractLocalBuild(ctx context.Context, build localsrc.Build, 
 		p.Log.Warn("No asset extractor available - skipping Unity asset extraction")
 	}
 
-	// Produce a decrypted metadata for il2cpp dumping (skipped if already valid).
-	p.prepareMetadata(build, workDir)
+	// Produce a dumpable metadata file for il2cpp dumping, decrypting when the
+	// source metadata is obfuscated.
+	metadataPath := p.prepareMetadata(build, workDir)
+	if err := p.dumpIL2CPP(ctx, build, metadataPath, workDir); err != nil {
+		return "", err
+	}
 
-	p.Log.Warn("il2cpp dump not yet implemented (pending Il2CppInspector integration)")
 	return version, nil
 }
 
-// prepareMetadata writes a decrypted global-metadata.dat into the build's
-// game_files directory when the source is obfuscated. The macOS build ships an
-// already-valid metadata, so it is detected and left as-is. Failures are
-// non-fatal: a stale decryption key only blocks the (future) il2cpp dump.
-func (p *Pipeline) prepareMetadata(build localsrc.Build, workDir string) {
-	if !p.DecryptMetadata || build.Metadata == "" {
-		return
-	}
-	enc, err := os.ReadFile(build.Metadata)
-	if err != nil {
-		p.Log.Warn("reading metadata: %v", err)
-		return
-	}
-	if metadata.IsDecrypted(enc) {
-		p.Log.Info("global-metadata.dat is already decrypted - no action needed")
-		return
-	}
-
-	p.Log.Info("Decrypting global-metadata.dat...")
-	dec, err := metadata.Decrypt(enc, metadata.DefaultVersion)
-	if err != nil {
-		p.Log.Warn("metadata decryption failed (decryption constants may be stale for this build): %v", err)
-		return
+// prepareMetadata writes a dumpable global-metadata.dat into the build's
+// game_files directory, decrypting when the source is obfuscated. The macOS
+// build ships an already-valid metadata, so it is copied through unchanged.
+// Failures are non-fatal unless the il2cpp dumper is configured as required.
+func (p *Pipeline) prepareMetadata(build localsrc.Build, workDir string) string {
+	if build.Metadata == "" {
+		return ""
 	}
 	dst := filepath.Join(workDir, gameFilesDirName, "global-metadata.decrypted.dat")
+
+	if !p.DecryptMetadata {
+		data, err := os.ReadFile(build.Metadata)
+		if err != nil {
+			p.Log.Warn("reading metadata: %v", err)
+			return ""
+		}
+		if metadata.IsDecrypted(data) {
+			p.Log.Info("metadata decryption disabled; using already-valid global-metadata.dat")
+			return build.Metadata
+		}
+		p.Log.Warn("metadata decryption disabled and source metadata is obfuscated - il2cpp dump will be skipped")
+		return ""
+	}
+
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		p.Log.Warn("writing decrypted metadata: %v", err)
-		return
+		p.Log.Warn("preparing metadata: %v", err)
+		return ""
 	}
-	if err := os.WriteFile(dst, dec, 0o644); err != nil {
-		p.Log.Warn("writing decrypted metadata: %v", err)
-		return
+	decrypted, err := metadata.Prepare(build.Metadata, dst, metadata.DefaultVersion)
+	if err != nil {
+		p.Log.Warn("metadata decryption failed (decryption constants may be stale for this build): %v", err)
+		return ""
 	}
-	p.Log.Success("Decrypted global-metadata.dat (%d bytes) -> %s", len(dec), filepath.Base(dst))
+	if decrypted {
+		p.Log.Success("Decrypted global-metadata.dat -> %s", filepath.Base(dst))
+	} else {
+		p.Log.Info("global-metadata.dat is already valid -> %s", filepath.Base(dst))
+	}
+	return dst
+}
+
+func (p *Pipeline) dumpIL2CPP(ctx context.Context, build localsrc.Build, metadataPath, workDir string) error {
+	if p.IL2CPPDumper == nil {
+		return nil
+	}
+	if !p.IL2CPPDumper.Available() {
+		msg := fmt.Sprintf("IL2CPP dumper %q is not available - skipping", p.IL2CPPDumper.Name())
+		if p.IL2CPPRequired {
+			return errors.New(msg)
+		}
+		p.Log.Warn("%s", msg)
+		return nil
+	}
+	if metadataPath == "" || build.GameAssembly == "" {
+		msg := "IL2CPP dump inputs are incomplete - skipping"
+		if p.IL2CPPRequired {
+			return errors.New(msg)
+		}
+		p.Log.Warn("%s", msg)
+		return nil
+	}
+
+	p.Log.Info("Dumping IL2CPP (%s backend)...", p.IL2CPPDumper.Name())
+	p.Log.Indent()
+	err := p.IL2CPPDumper.Dump(ctx, il2cpp.Input{
+		AppPath:      build.AppPath,
+		DataDir:      build.DataDir,
+		GameAssembly: build.GameAssembly,
+		Metadata:     metadataPath,
+	}, filepath.Join(workDir, "il2cpp_dump"))
+	p.Log.Dedent()
+	if err != nil {
+		if p.IL2CPPRequired {
+			return fmt.Errorf("il2cpp dump: %w", err)
+		}
+		p.Log.Warn("il2cpp dump failed: %v", err)
+		return nil
+	}
+	p.Log.Success("IL2CPP dump finished")
+	return nil
 }
 
 // publishBuild diffs the new build against the currently published one, writes a
