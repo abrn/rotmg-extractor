@@ -129,6 +129,14 @@ func Locate(appPath string) (Build, error) {
 		return Build{}, fmt.Errorf("install path %q is not a directory", appPath)
 	}
 
+	// A downloaded macOS build lands as "<dir>/RotMGExalt.app/..."; descend into
+	// the bundle so the macOS layout resolution below applies.
+	if !hasSuffix(appPath, ".app") {
+		if app := findAppBundle(appPath); app != "" {
+			appPath = app
+		}
+	}
+
 	dataDir, err := findDataDir(appPath)
 	if err != nil {
 		return Build{}, err
@@ -151,6 +159,20 @@ func Locate(appPath string) (Build, error) {
 		GameAssembly: findGameAssembly(appPath, dataDir),
 		Hash:         hash,
 	}, nil
+}
+
+// findAppBundle returns the first "*.app" subdirectory of dir, or "".
+func findAppBundle(dir string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, e := range entries {
+		if e.IsDir() && filepath.Ext(e.Name()) == ".app" {
+			return filepath.Join(dir, e.Name())
+		}
+	}
+	return ""
 }
 
 // findDataDir resolves the Unity Data directory for the various install layouts.
