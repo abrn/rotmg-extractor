@@ -60,11 +60,16 @@ type IL2CPP struct {
 	// Required makes dump failures fail the build. When false, failures are
 	// logged and the normal asset publish continues.
 	Required bool `yaml:"required"`
-	// TimeoutMinutes bounds each Cpp2IL command invocation. 0 disables the
+	// TimeoutMinutes bounds each dumper command invocation. 0 disables the
 	// timeout.
 	TimeoutMinutes int `yaml:"timeout_minutes"`
+	// Backend selects which IL2CPP dumper runs: "cpp2il" (default) or
+	// "il2cppdumper".
+	Backend string `yaml:"backend"`
 	// Cpp2IL configures the Cpp2IL backend.
 	Cpp2IL Cpp2IL `yaml:"cpp2il"`
+	// Il2CppDumper configures the Il2CppDumper backend.
+	Il2CppDumper Il2CppDumper `yaml:"il2cppdumper"`
 }
 
 // Cpp2IL configures the bundled Cpp2IL executable.
@@ -88,6 +93,24 @@ type Cpp2IL struct {
 	Verbose bool `yaml:"verbose"`
 	// ContinueOnFail attempts every selected output format even if one fails.
 	ContinueOnFail bool `yaml:"continue_on_fail"`
+}
+
+// Il2CppDumper configures Perfare's Il2CppDumper backend.
+type Il2CppDumper struct {
+	// Dir is the directory holding the Il2CppDumper executable (a native binary
+	// or the cross-platform Il2CppDumper.dll), or the binary path itself.
+	Dir string `yaml:"dir"`
+	// Binary, when set, overrides OS-specific binary resolution.
+	Binary string `yaml:"binary"`
+	// ExtraArgs are appended to every Il2CppDumper run for local experimentation.
+	ExtraArgs []string `yaml:"extra_args"`
+	// ForceVersion, when set, is written into config.json as ForceIl2CppVersion
+	// to override metadata-version auto-detection. Use the IL2CPP metadata major
+	// version, e.g. "29".
+	ForceVersion string `yaml:"force_version"`
+	// KeepConfig leaves an existing config.json next to the binary untouched
+	// instead of enforcing RequireAnyKey=false.
+	KeepConfig bool `yaml:"keep_config"`
 }
 
 // AssetRipper configures the bundled Unity asset extractor.
@@ -180,11 +203,15 @@ func Default() Config {
 			Enabled:        false,
 			Required:       false,
 			TimeoutMinutes: 10,
+			Backend:        "cpp2il",
 			Cpp2IL: Cpp2IL{
 				Dir:            "tools/il2cpp/cpp2il",
 				FullDump:       true,
 				Formats:        []string{"dll_il_recovery"},
 				ContinueOnFail: true,
+			},
+			Il2CppDumper: Il2CppDumper{
+				Dir: "tools/il2cpp/il2cppdumper",
 			},
 		},
 		AssetRipper: AssetRipper{
