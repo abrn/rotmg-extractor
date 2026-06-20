@@ -42,6 +42,9 @@ func main() {
 	layout := paths.New(cfg.Output.Dir)
 	pipe := pipeline.New(log, layout)
 	pipe.VersionOverride = cfg.Build.VersionOverride
+	pipe.FullDownload = cfg.Source.FullDownload
+	pipe.Incremental = cfg.Source.Incremental
+	pipe.KeepBuilds = cfg.Output.KeepBuilds
 	pipe.Extractor = buildExtractor(cfg, log)
 	pipe.Notifier = buildNotifier(cfg, log)
 	log.Info("Using %q extraction backend", pipe.Extractor.Name())
@@ -58,7 +61,7 @@ func main() {
 		case "local":
 			runLocalPass(ctx, log, pipe, cfg.Source)
 		default:
-			runPass(ctx, log, pipe)
+			runPass(ctx, log, pipe, cfg.Source.Platforms)
 		}
 
 		if *once {
@@ -121,16 +124,26 @@ func runLocalPass(ctx context.Context, log *logx.Logger, pipe *pipeline.Pipeline
 	log.Info("Done!")
 }
 
-// runPass processes every environment and build type once.
-func runPass(ctx context.Context, log *logx.Logger, pipe *pipeline.Pipeline) {
-	for _, env := range rotmg.Environments {
+// runPass fetches and processes each configured platform's client and launcher.
+func runPass(ctx context.Context, log *logx.Logger, pipe *pipeline.Pipeline, platforms []string) {
+	if len(platforms) == 0 {
+		log.Warn("No platforms configured (source.platforms) - nothing to do")
+		return
+	}
+
+	for _, name := range platforms {
 		if ctx.Err() != nil {
 			return
 		}
+		platform, ok := rotmg.Platforms[name]
+		if !ok {
+			log.Error("Unknown platform %q (known: windows, macos) - skipping", name)
+			continue
+		}
 
-		settings, err := rotmg.FetchAppSettings(ctx, env)
+		settings, err := rotmg.FetchAppSettings(ctx, platform)
 		if err != nil {
-			log.Error("Failed fetching app settings for %s: %v", env.Name, err)
+			log.Error("Failed fetching app settings for %s: %v", platform.Name, err)
 			continue
 		}
 
@@ -138,8 +151,8 @@ func runPass(ctx context.Context, log *logx.Logger, pipe *pipeline.Pipeline) {
 			if ctx.Err() != nil {
 				return
 			}
-			if err := pipe.Run(ctx, env, settings, bt); err != nil {
-				log.Error("Pipeline failed for %s %s: %v", env.Name, bt, err)
+			if err := pipe.Run(ctx, platform, settings, bt); err != nil {
+				log.Error("Pipeline failed for %s %s: %v", platform.Name, bt, err)
 			}
 		}
 	}

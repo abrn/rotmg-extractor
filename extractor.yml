@@ -2,10 +2,13 @@
 # All values shown are the defaults; the file may be omitted entirely.
 
 source:
-  # "local" extracts a build already installed on disk.
-  # "remote" (downloading from live servers) is shelved until the endpoints
-  # are re-discovered.
+  # "local"  extracts a build already installed on disk.
+  # "remote" downloads builds from the live CDN.
   mode: local
+  # Remote mode: which platforms to watch/download. Defaults to Windows only;
+  # add "macos" to also watch the macOS build.
+  #   platforms: [windows, macos]
+  platforms: [windows]
   # The installed build root: an .app bundle on macOS, or the game folder
   # containing RotMGExalt_Data on Windows/Linux. Leave blank to auto-discover
   # from OS-specific default install locations.
@@ -17,6 +20,14 @@ source:
   # global-metadata.dat into the output (~130 MB). These are also scanned for
   # the build version. On by default.
   copy_game_files: true
+  # Remote mode: when false (default) download only the essential files
+  # (binaries, metadata, Unity .assets) — ~80% smaller than a full build, which
+  # is mostly texture/audio data we don't extract. Set true for everything.
+  full_download: false
+  # Keep build files on disk and only re-download files whose checksum changed
+  # between builds. Saves bandwidth (unchanged binaries aren't re-fetched) but
+  # keeps ~500 MB/platform on disk. Off by default (downloads go to temp).
+  incremental: false
 
 build:
   # Fallback Exalt version, used only when it can't be detected from the game
@@ -35,8 +46,8 @@ assetripper:
   # within it. Only used when extraction.backend is "assetripper". See
   # tools/assetripper/README.md to obtain the right build for your platform.
   dir: tools/assetripper
-  # Local port AssetRipper hosts its API on.
-  port: 50111
+  # Local port AssetRipper hosts its API on. 0 picks a free port automatically.
+  port: 0
   # "primary" exports decoded assets only (fast); "project" exports a full
   # reconstructed Unity project.
   export: primary
@@ -57,6 +68,9 @@ poll:
 output:
   # Root directory for downloaded, work-in-progress and published files.
   dir: ./output
+  # Retain at most this many versioned builds per platform/build type; older
+  # ones are pruned after publishing. 0 keeps every build.
+  keep_builds: 0
 
 logging:
   # debug | info | warn | error

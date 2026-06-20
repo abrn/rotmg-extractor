@@ -52,7 +52,7 @@ type AssetRipper struct {
 	// Dir is the directory holding the AssetRipper binary. The OS-specific
 	// executable name (AssetRipper.GUI.Free[.exe]) is resolved within it.
 	Dir string `yaml:"dir"`
-	// Port is the local port AssetRipper hosts its API on.
+	// Port is the local port AssetRipper hosts its API on. 0 picks a free port.
 	Port int `yaml:"port"`
 	// Export is "primary" (assets only) or "project" (full Unity project).
 	Export string `yaml:"export"`
@@ -64,6 +64,9 @@ type AssetRipper struct {
 type Source struct {
 	// Mode is "local" or "remote".
 	Mode string `yaml:"mode"`
+	// Platforms lists which platforms to watch/download in remote mode
+	// ("windows", "macos"). Defaults to Windows only.
+	Platforms []string `yaml:"platforms"`
 	// LocalPath is the installed build root for local mode (an .app bundle on
 	// macOS, or a directory containing a *_Data folder on Windows/Linux). If
 	// empty, the install is auto-discovered from OS-specific default locations.
@@ -75,6 +78,16 @@ type Source struct {
 	// (GameAssembly/UnityPlayer) and global-metadata.dat into the output. These
 	// are also scanned for the build version. On by default (~130 MB).
 	CopyGameFiles bool `yaml:"copy_game_files"`
+	// FullDownload, when true, downloads every file in the build manifest
+	// instead of only the essential ones (binaries, metadata, Unity
+	// SerializedFiles). Off by default — the skipped texture/audio streaming
+	// data is ~80% of a build.
+	FullDownload bool `yaml:"full_download"`
+	// Incremental keeps a persistent copy of the build files and only
+	// re-downloads files whose checksum changed between builds. Off by default:
+	// it saves bandwidth (unchanged binaries aren't re-fetched) at the cost of
+	// keeping the build files on disk (~500 MB/platform, decompressed).
+	Incremental bool `yaml:"incremental"`
 }
 
 // Poll controls how often the extractor checks for new builds.
@@ -90,6 +103,9 @@ type Poll struct {
 type Output struct {
 	// Dir is the root output directory (contains temp/ and publish/).
 	Dir string `yaml:"dir"`
+	// KeepBuilds bounds how many versioned builds to retain per platform/build
+	// type; older ones are pruned after publishing. 0 keeps all.
+	KeepBuilds int `yaml:"keep_builds"`
 }
 
 // Logging controls log verbosity and destinations.
@@ -105,6 +121,7 @@ func Default() Config {
 	return Config{
 		Source: Source{
 			Mode:          "local",
+			Platforms:     []string{"windows"},
 			LocalPath:     "", // empty => auto-discover per OS
 			Snapshot:      false,
 			CopyGameFiles: true,
@@ -117,7 +134,7 @@ func Default() Config {
 		},
 		AssetRipper: AssetRipper{
 			Dir:    "tools/assetripper",
-			Port:   50111,
+			Port:   0, // 0 => pick a free port automatically
 			Export: "primary",
 		},
 		Notify: Notify{

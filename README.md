@@ -77,9 +77,13 @@ All keys are optional; defaults are shown. See [`extractor.yml`](extractor.yml).
 
 ```yaml
 source:
-  mode: local            # "local" | "remote" (remote is shelved)
+  mode: local            # "local" | "remote"
+  platforms: [windows]   # remote: which to watch — "windows" and/or "macos"
   local_path: ""         # install root; blank = auto-discover per OS
-  snapshot: false        # also copy the full build files (slow, 100s of MB)
+  snapshot: false        # also copy the full Data dir (slow, ~750 MB)
+  copy_game_files: true  # copy GameAssembly/UnityPlayer + metadata (~130 MB)
+  full_download: false   # remote: download all files vs only essential (~80% smaller)
+  incremental: false     # remote: keep build files, only re-fetch changed ones
 
 build:
   version_override: "6.11.0.0.0"   # used when the version can't be auto-detected
@@ -139,3 +143,6 @@ GOOS=windows GOARCH=amd64 go build ./...   # cross-compile check
 - **Additional delivery targets** — the original config declared SSH, FTP and
   Redis pub-sub outputs (never implemented) alongside Discord. Add as
   `notify`/`publish` targets if needed.
+- **macOS launcher unpacking** — the macOS launcher is downloaded as a raw
+  `.dmg` but not unpacked (low priority). The Windows launcher is likewise the
+  raw `.exe`.
