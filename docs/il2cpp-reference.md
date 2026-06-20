@@ -11,6 +11,36 @@ guide porting the il2cpp dump. The Go implementation will live in
   (Windows), `GameAssembly.so` (Linux). Already located by `localsrc.Build.GameAssembly`.
 - **`global-metadata.dat`** — already located by `localsrc.Build.Metadata`.
 
+## Metadata decryption (`internal/metadata`)
+
+RotMG obfuscates `global-metadata.dat` on **Windows** (XXTEA-encrypted custom
+header, two XOR-masked sections, payload shifted by `0x1E4`). The **macOS** build
+ships an already-valid metadata (begins with magic `0xFAB11BAF`), so decryption
+is detected and skipped (`metadata.IsDecrypted`). The pipeline runs
+`prepareMetadata` automatically (config `extraction.decrypt_metadata`, default
+on), writing `game_files/global-metadata.decrypted.dat` only when decryption is
+actually performed.
+
+**The decryption constants are build-specific and rotate.** They live at the top
+of `internal/metadata/metadata.go`:
+
+| Constant | Meaning |
+|----------|---------|
+| `xxteaKeyText` | XXTEA key bytes (from `GameAssembly!FUN_180223b50` key packing) |
+| `lenOffBase` (`0x2F1AF`) | base for `len_off = -0x2F1AF - *(int32*)meta - 4` |
+| `teaLenAdd` (`0x621CF`) | added to the length seed → XXTEA block length |
+| `shift` (`0x1E4`) | on-disk payload shift |
+| post-XXTEA fixups | swap `header[0]`/`header[-1]`; `header[9]^=0x27`; `header[5]^=0x59` |
+| string heap XOR | `dec[hdr[0x2C]+i] ^= i+0x5F` (size `hdr[0x0C]`) |
+| second table XOR | `dec[hdr[0x58]+i] ^= 0x0D-i` (size `hdr[0x23C]`) |
+
+To **refresh** them for a new build, reverse-engineer the current
+`GameAssembly.dll`: the metadata loader (`FUN_18021eb70` in the RE notes) holds
+the XOR offsets/constants, and `FUN_180223b50` the XXTEA key packing. A wrong key
+surfaces as `bad XXTEA plaintext length` (current live build is stale — needs a
+refresh). Verify a refresh by checking the output starts with `0xFAB11BAF` and
+has plaintext identifier strings.
+
 ## Original Python invocation (Il2CppInspector)
 
 ```
@@ -49,5 +79,6 @@ types that matter (e.g. extracting packet definitions):
 |---------|-----------|
 | Incoming packets | `Net.SocketServer.Messages.Incoming` |
 | Outgoing packets | `Net.SocketServer.Messages.Outgoing` |
+| Data packets | `Net.SocketServer.Messages.Data` |
 | Pool managers | `Managers.Pool` |
 | Debug tools | `DebugTools` |
