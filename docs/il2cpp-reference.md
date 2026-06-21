@@ -83,3 +83,24 @@ types that matter (e.g. extracting packet definitions):
 | Data packets | `Net.SocketServer.Messages.Data` |
 | Pool managers | `Managers.Pool` |
 | Debug tools | `DebugTools` |
+
+## Il2CppDumper backend (roadmap item #3)
+
+[Perfare/Il2CppDumper](https://github.com/Perfare/Il2CppDumper) is wired in as a
+selectable backend (`il2cpp.backend: il2cppdumper`), implemented in
+`internal/il2cpp/il2cppdumper.go`.
+
+Invocation: `Il2CppDumper <GameAssembly> <global-metadata.dat> <output-dir>`
+(the managed `Il2CppDumper.dll` is run as `dotnet Il2CppDumper.dll ...`). It reads
+`config.json` from the binary's directory; the backend ensures
+`RequireAnyKey: false` so it never blocks on a prompt, and sets
+`ForceIl2CppVersion`/`ForceVersion` when `force_version` is configured.
+
+Outputs: `DummyDll/`, `dump.cs`, `il2cpp.h`, `script.json`, `stringliteral.json`
+(plus IDA/Ghidra/BinaryNinja scripts) under `il2cpp_dump/`.
+
+Rationale: Perfare's documented range is "Unity 5.3 – 2022.2", which covers the
+IL2CPP metadata v29 era. The live build reports metadata v29.1, where Cpp2IL
+currently fails with `EndOfStreamException`, so Il2CppDumper is a candidate path
+to a working dump. Confirm against the current build; use `force_version: "29"`
+if auto-detection misfires.

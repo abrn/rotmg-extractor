@@ -14,5 +14,10 @@ output/
 # to re-download per platform, or use git-lfs if you want them tracked.
 tools/assetripper/*
 !tools/assetripper/README.md
+
+# bundled Il2CppDumper binaries: not committed. See tools/il2cpp/il2cppdumper/README.md
+tools/il2cpp/il2cppdumper/*
+!tools/il2cpp/il2cppdumper/README.md
+
 # macOS
 .DS_Store

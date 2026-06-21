@@ -35,7 +35,8 @@ Useful flags:
 | `-once` | `false` | Run one pass and exit instead of polling forever. |
 | `-il2cpp-only` | `false` | Run only the configured IL2CPP dump against an existing client build. |
 | `-il2cpp-env` | `""` | Platform/env for `-il2cpp-only`; defaults to local `Production` or the first remote platform. |
-| `-il2cpp-format` | `""` | Comma-separated Cpp2IL format override for `-il2cpp-only`, e.g. `dummydll` or `dll_il_recovery`. |
+| `-il2cpp-format` | `""` | Comma-separated Cpp2IL output format override for `-il2cpp-only` (Cpp2IL backend only). |
+| `-il2cpp-tool` | `""` | IL2CPP backend override for `-il2cpp-only`, e.g. `il2cppdumper` or `cpp2il`. |
 
 ### Common Commands
 
@@ -138,7 +139,7 @@ native binaries. It remains available in each versioned archive.
 | `native` | Supported, default | Unity TextAssets as `.xml`, `.json`, `.txt` | No | Pure Go. This is the normal game-data path used by merge/diff/changelog. |
 | `assetripper` | Supported | Broader Unity asset export | Yes, AssetRipper | Heavier. Useful for textures/sprites/meshes. XML merge may no-op when text exports as `.bytes`. |
 | `cpp2il` | Supported as optional IL2CPP dump | Cpp2IL output formats under `il2cpp_dump/cpp2il/<format>/` | Yes, Cpp2IL | Configured under `il2cpp.cpp2il`. Can run all listed formats or a selected format. Requires compatible metadata/tool support. |
-| `il2cppdumper` | Upcoming | Expected: DummyDll, `dump.cs`, JSON/script outputs | Yes, Il2CppDumper | Planned as a second IL2CPP pipeline beside Cpp2IL, useful where Perfare/Il2CppDumper supports the target Unity metadata/binary version. |
+| `il2cppdumper` | Supported as optional IL2CPP dump | DummyDll, `dump.cs`, `il2cpp.h`, `script.json`, `stringliteral.json` under `il2cpp_dump/` | Yes, Il2CppDumper | Selected by `il2cpp.backend: il2cppdumper`. Targets metadata v16–29-era builds; useful where Cpp2IL fails on the current Unity 6000 / metadata v29.1 binaries. Native binary or `Il2CppDumper.dll` via `dotnet`. |
 
 ## Configuration Reference
 
@@ -165,7 +166,8 @@ extraction:
 il2cpp:
   enabled: false           # run IL2CPP dumping after asset extraction
   required: false          # true = fail build when IL2CPP dump fails
-  timeout_minutes: 10      # per Cpp2IL command; 0 disables timeout
+  timeout_minutes: 10      # per dumper command; 0 disables timeout
+  backend: cpp2il          # "cpp2il" | "il2cppdumper"
   cpp2il:
     dir: tools/il2cpp/cpp2il  # directory containing Cpp2IL, or the binary path itself
     binary: ""                # explicit binary override
@@ -175,6 +177,12 @@ il2cpp:
     extra_args: []            # appended to every Cpp2IL invocation
     verbose: false
     continue_on_fail: true    # keep trying formats after one format fails
+  il2cppdumper:
+    dir: tools/il2cpp/il2cppdumper  # directory containing Il2CppDumper, or the binary/dll path itself
+    binary: ""                      # explicit binary override (native exe or Il2CppDumper.dll)
+    extra_args: []                  # appended to every Il2CppDumper invocation
+    force_version: ""               # set ForceIl2CppVersion (metadata major, e.g. "29") when auto-detect fails
+    keep_config: false              # leave an existing config.json next to the binary untouched
 
 assetripper:
   dir: tools/assetripper   # directory holding AssetRipper.GUI.Free[.exe]
@@ -233,10 +241,40 @@ output/temp/work/windows/client/il2cpp_dump/logs/dummydll.log
 output/temp/work/windows/client/il2cpp_dump/manifest.json
 ```
 
+### Il2CppDumper backend
+
+Select Perfare's [Il2CppDumper](https://github.com/Perfare/Il2CppDumper) instead
+of Cpp2IL with:
+
+```yaml
+il2cpp:
+  enabled: true
+  backend: il2cppdumper
+```
+
+Place the executable at `tools/il2cpp/il2cppdumper/` (a native `Il2CppDumper`/
+`Il2CppDumper.exe`, or the cross-platform `Il2CppDumper.dll`, which is run via
+`dotnet`), or set `il2cpp.il2cppdumper.binary`. The backend takes `GameAssembly`
+and the dumpable `global-metadata.dat` as direct arguments — no staged game
+folder — and writes `DummyDll/`, `dump.cs`, `il2cpp.h`, `script.json`, and
+`stringliteral.json` to `il2cpp_dump/`, plus `logs/` and `manifest.json`.
+
+It writes a `config.json` next to the binary with `RequireAnyKey: false` so it
+runs non-interactively (set `keep_config: true` to manage that file yourself). If
+metadata-version auto-detection fails, set `force_version` (e.g. `"29"`).
+
+Iterate against an already-downloaded build without re-extracting:
+
+```sh
+go run cmd/extractor/main.go -once -il2cpp-only -il2cpp-tool il2cppdumper
+```
+
+`-il2cpp-format` applies to the Cpp2IL backend only.
+
 ## Platform Notes
 
 The default `native` backend and pipeline code are pure Go. AssetRipper, Cpp2IL,
-and the upcoming Il2CppDumper backend require platform-appropriate external
+and the Il2CppDumper backend require platform-appropriate external
 binaries.
 
 The downloader can fetch Windows builds while running on macOS or Linux. IL2CPP
