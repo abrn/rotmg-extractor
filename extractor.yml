@@ -45,13 +45,22 @@ extraction:
   decrypt_metadata: true
 
 il2cpp:
-  # Run Cpp2IL after asset extraction, using GameAssembly and a dumpable
-  # global-metadata.dat prepared by extraction.decrypt_metadata.
+  # Run IL2CPP processing tools on GameAssembly and global-metadata.dat
   enabled: true
+  backend: "il2cppdumper"
   # When false, Cpp2IL failures are logged but the build still publishes.
   required: false
   # Timeout for each Cpp2IL command. Set 0 to disable.
   timeout_minutes: 10
+  il2cppdumper:
+    # Directory holding the Il2CppDumper binary.
+    dir: tools/il2cpp/il2cppdumper
+    # Skip auto detection of Unity version and use this version.
+    #force_version: 29
+    # Leave the existing config.json next to the binary untouched.
+    #keep_config: true
+    # List of extra command line arguments to pass while running.
+    extra_args: []
   cpp2il:
     # Directory holding the Cpp2IL native binary, or the binary path itself.
     # See docs/il2cpp-reference.md.
