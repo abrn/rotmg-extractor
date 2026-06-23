@@ -28,7 +28,8 @@ func main() {
 	once := flag.Bool("once", false, "run a single pass instead of looping")
 	il2cppOnly := flag.Bool("il2cpp-only", false, "run only the IL2CPP dump against an existing client build")
 	il2cppEnv := flag.String("il2cpp-env", "", "environment/platform for -il2cpp-only (default: local Production or first configured remote platform)")
-	il2cppFormat := flag.String("il2cpp-format", "", "comma-separated Cpp2IL output format override for -il2cpp-only")
+	il2cppFormat := flag.String("il2cpp-format", "", "comma-separated Cpp2IL output format override for -il2cpp-only (Cpp2IL backend only)")
+	il2cppTool := flag.String("il2cpp-tool", "", "override il2cpp backend for this run: cpp2il or il2cppdumper")
 	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
@@ -40,6 +41,9 @@ func main() {
 	if *il2cppFormat != "" {
 		cfg.IL2CPP.Cpp2IL.FullDump = false
 		cfg.IL2CPP.Cpp2IL.Formats = splitCSV(*il2cppFormat)
+	}
+	if *il2cppTool != "" {
+		cfg.IL2CPP.Backend = *il2cppTool
 	}
 
 	log := logx.New(logx.ParseLevel(cfg.Logging.Level), cfg.Logging.Colors)
@@ -122,6 +126,22 @@ func buildIL2CPPDumper(cfg config.Config, log *logx.Logger) pipeline.IL2CPPDumpe
 	if !cfg.IL2CPP.Enabled {
 		return nil
 	}
+	timeout := time.Duration(cfg.IL2CPP.TimeoutMinutes) * time.Minute
+
+	if cfg.IL2CPP.Backend == "il2cppdumper" {
+		c := cfg.IL2CPP.Il2CppDumper
+		bin, useDotnet := il2cpp.ResolveIl2CppDumperBinary(c.Dir, c.Binary)
+		return &il2cpp.Il2CppDumper{
+			BinPath:      bin,
+			UseDotnet:    useDotnet,
+			ExtraArgs:    c.ExtraArgs,
+			ForceVersion: c.ForceVersion,
+			KeepConfig:   c.KeepConfig,
+			Timeout:      timeout,
+			Log:          log,
+		}
+	}
+
 	c := cfg.IL2CPP.Cpp2IL
 	return &il2cpp.Cpp2IL{
 		BinPath:        il2cpp.ResolveCpp2ILBinary(c.Dir, c.Binary),
@@ -130,7 +150,7 @@ func buildIL2CPPDumper(cfg config.Config, log *logx.Logger) pipeline.IL2CPPDumpe
 		Processors:     c.Processors,
 		ExtraArgs:      c.ExtraArgs,
 		Verbose:        c.Verbose,
-		Timeout:        time.Duration(cfg.IL2CPP.TimeoutMinutes) * time.Minute,
+		Timeout:        timeout,
 		Log:            log,
 		ContinueOnFail: c.ContinueOnFail,
 	}
@@ -175,9 +195,9 @@ func runLocalPass(ctx context.Context, log *logx.Logger, pipe *pipeline.Pipeline
 	log.Info("Done!")
 }
 
-// runIL2CPPOnly reruns Cpp2IL without the normal new-build/download/extract
-// flow. Remote mode uses output/buildfiles/<env>/client, so source.incremental
-// must have preserved the downloaded build files.
+// runIL2CPPOnly reruns the selected il2cpp backend without the normal
+// new-build/download/extract flow. Remote mode uses output/buildfiles/<env>/client,
+// so source.incremental must have preserved the downloaded build files.
 func runIL2CPPOnly(ctx context.Context, log *logx.Logger, pipe *pipeline.Pipeline, src config.Source, env string) {
 	if pipe.IL2CPPDumper == nil {
 		log.Error("IL2CPP is disabled; set il2cpp.enabled: true")
