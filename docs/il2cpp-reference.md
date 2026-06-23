@@ -1,9 +1,10 @@
 # il2cpp dump — reference (for roadmap item #4)
 
 Notes preserved from the original Python tool before its source was deleted, to
-guide porting the il2cpp dump. The Go implementation will live in
-`internal/il2cpp` and follow the same bundled-binary pattern as
-[`tools/assetripper`](../tools/assetripper/README.md).
+guide the il2cpp dump implementation. The Go implementation lives in
+`internal/il2cpp` and follows the same bundled-binary pattern as
+[`tools/assetripper`](../tools/assetripper/README.md). Cpp2IL support is
+implemented first; Il2CppDumper is still planned as a separate backend.
 
 ## Inputs
 
@@ -42,6 +43,30 @@ the constants for a new build, reverse-engineer that function (XOR offsets) and
 Verified working on the current live Windows build (output is byte-identical to
 the reference Python).
 
+## Current Go invocation (Cpp2IL)
+
+The pipeline prepares `game_files/global-metadata.decrypted.dat`, stages a
+minimal Cpp2IL game folder, then runs Cpp2IL into `il2cpp_dump/`.
+
+With `il2cpp.cpp2il.full_dump: true`, it first runs:
+
+```
+Cpp2IL --list-output-formats
+```
+
+Then each listed format is run separately:
+
+```
+Cpp2IL \
+  --game-path=<staged-game-dir> \
+  --exe-name=RotMGExalt \
+  --output-to=<out>/il2cpp_dump/cpp2il/<format> \
+  --output-as=<format>
+```
+
+Logs are written to `il2cpp_dump/logs/`, and `manifest.json` records selected
+formats, command arguments, durations, input hashes, and errors.
+
 ## Original Python invocation (Il2CppInspector)
 
 ```
@@ -67,9 +92,9 @@ Output directory (publish as `il2cpp_dump/`): `il2cpp.py`, `metadata.json`,
   dev machine (mac/arm64). They were removed with `src/` and remain recoverable
   from git history if needed.
 - This build is **Unity 6 (6000.0.58f2)**; Il2CppInspector's support for that
-  metadata version is uncertain. **Cpp2IL** (cross-platform, self-contained,
-  active) is the likely choice — bundle it under `tools/` and resolve the
-  per-OS binary like AssetRipper.
+  metadata version is uncertain. **Cpp2IL** is the primary supported backend —
+  bundle it under `tools/il2cpp/cpp2il` and resolve the per-OS binary like
+  AssetRipper.
 
 ## Namespaces of interest
 
